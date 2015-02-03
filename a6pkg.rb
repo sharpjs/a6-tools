@@ -63,7 +63,7 @@ module A6
         end
       end
 
-      block_decoder.verify.write_to($stdout)
+      block_decoder.verify.write_to($stdout.binmode)
     end
 
     def decode_sysex
@@ -76,7 +76,7 @@ module A6
         end
       end
 
-      $stdout << blocks
+      $stdout.binmode << blocks
     end
 
     protected
