@@ -1,0 +1,105 @@
+// This file is part of a6-tools.
+// Copyright (C) 2016 Jeffrey Sharp
+//
+// a6-tools is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published
+// by the Free Software Foundation, either version 3 of the License,
+// or (at your option) any later version.
+//
+// a6-tools is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+// the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
+
+pub fn decode_7bit(src: &[u8], dst: &mut Vec<u8>)
+{
+    // Iteration
+    // |  Leftover bits
+    // |  |        Byte
+    // |  |        |
+    // 0: ........ .0000000 (not enough bits for a byte)
+    // 1: ..111111 10000000 -> yield byte
+    // 2: ...22222 22111111 -> yield byte
+    // 3: ....3333 33322222 -> yield byte
+    // 4: .....444 44443333 -> yield byte
+    // 5: ......55 55555444 -> yield byte
+    // 6: .......6 66666655 -> yield byte
+    // 7: ........ 77777776 -> yield byte
+    // 8: (repeats)
+
+    let mut data = 0u16;    // a shift register where bits become bytes
+    let mut bits = 0;       // how many leftover bits from previous iteration
+
+    for v in src {
+        // Isolate 7 data bits.
+        let v = (*v & 0x7F) as u16;
+
+        if bits == 0 {
+            // Initially, and after every 8 iterations, there are no leftover
+            // bits from the previous iteration.  With only 7 new bits, there
+            // aren't enough to make a byte.  Just let those bits become the
+            // leftovers for the next iteration.
+            data = v;
+            bits = 7;
+        } else {
+            // For other iterations, there are leftover bits from the previous
+            // iteration.  Consider those as least significant, and the 7 new
+            // bits as most significant, and yield a byte.  Any unused bits
+            // become leftovers for the next iteration to use.
+            data |= v << bits;
+            dst.push((data & 0xFF) as u8);
+            data >>= 8;
+            bits -= 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_7bit() {
+        let data7 = [
+            //
+            //    don't care
+            //    | leftover bits
+            //    | |    new bits
+            //    | |    |
+            // 0b_x_xxxx_xxxx
+            //
+            0b_1_1110001_,
+            0b_0_100010_1,
+            0b_1_10011_11,
+            0b_0_0100_110,
+            0b_1_101_1100,
+            0b_0_10_10110,
+            0b_1_1_101001,
+            0b_0__1001011,
+            0b_1_0001000_,
+            0b_0_111001_1,
+            0b_1_01010_01,
+            0b_0_1111_011,
+        ];
+        let mut data8 = vec![];
+
+        decode_7bit(&data7, &mut data8);
+
+        assert_eq!(data8.len(), 10);
+        assert_eq!(data8[0], 0xF1);
+        assert_eq!(data8[1], 0xE2);
+        assert_eq!(data8[2], 0xD3);
+        assert_eq!(data8[3], 0xC4);
+        assert_eq!(data8[4], 0xB5);
+        assert_eq!(data8[5], 0xA6);
+        assert_eq!(data8[6], 0x97);
+        assert_eq!(data8[7], 0x88);
+        assert_eq!(data8[8], 0x79);
+        assert_eq!(data8[9], 0x6A);
+        // Final leftover 4 bits go unused.
+    }
+}
+
