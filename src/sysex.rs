@@ -99,7 +99,7 @@ pub fn decode_7bit(src: &[u8], dst: &mut Vec<u8>)
             data |= v << bits;
             dst.push((data & 0xFF) as u8);
             data >>= 8;
-            bits -= 1;
+            bits  -= 1;
         }
     }
 }
