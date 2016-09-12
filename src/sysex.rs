@@ -32,7 +32,7 @@ pub fn encode_7bit(src: &[u8], dst: &mut Vec<u8>)
     //    ........ .6666666 -> yield 7 bits again
     // 7: (repeats)
 
-    let mut data = 0u16;    // a shift register where bits become bytes
+    let mut data = 0u16;    // a shift register where bytes become bits
     let mut bits = 0;       // how many leftover bits from previous iteration
 
     for v in src {
