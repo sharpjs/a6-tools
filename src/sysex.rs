@@ -14,6 +14,46 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+//use std::io::{self, Read, Bytes, Error as E, ErrorKind as EK};
+
+//pub struct Msg {
+//    pub opcode: u8,
+//    pub data:   Vec<u8>,
+//}
+
+//pub struct Msgs<R> {
+//    bytes: Bytes<R>,
+//}
+
+//impl<R: Read> Iterator for Msgs<R> {
+//    type Item = io::Result<Msg>;
+//
+//    fn next(&mut self) -> Option<io::Result<Msg>> {
+//        match self.bytes.next() {
+//            Some(Ok(0xF0)) => (),
+//            Some(Ok(b))    => return Some(Err(err_unexpected(b))),
+//            Some(Err(e))   => return Some(Err(e)),
+//            None           => return None,
+//        };
+//
+//        None
+//    }
+//}
+
+//fn err_unexpected(byte: u8) -> E {
+//    E::new(EK::Other, format!("unexpected 0x{:X}", byte))
+//}
+
+//pub trait MsgRead<R: Read> {
+//    fn msgs(self) -> Msgs<R>;
+//}
+
+// pub fn read_msg<R: Read>(src: R) -> io::Result<Msg> {
+//     //let mut msg = Msg { opcode: 0, data: vec![] };
+//     //Ok(msg)
+//     Err(())
+// }
+
 /// Encodes a sequence of bytes into a sequence of 7-bit values.
 ///
 pub fn encode_7bit(src: &[u8], dst: &mut Vec<u8>)
