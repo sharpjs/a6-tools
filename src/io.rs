@@ -24,11 +24,11 @@ pub struct Input<R> {
 }
 
 impl<R: BufRead> Input<R> {
-    pub fn new(stream: R, name: String) -> Self {
+    pub fn new<N: ToString>(stream: R, name: N) -> Self {
         Input {
             stream: stream,
             offset: 0,
-            name: name,
+            name:   name.to_string(),
         }
     }
 
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn skip_until() {
         let     src = Cursor::new(&b"123"[..]);
-        let mut src = Input::new(src, "test".into());
+        let mut src = Input::new(src, "test");
 
         assert_eq!(src.skip_until(b'3').unwrap(), true);
         assert_eq!(src.read_u8().unwrap(), Some(b'3'));
