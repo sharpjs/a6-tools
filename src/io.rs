@@ -57,12 +57,26 @@ impl<R: BufRead> Input<R> {
     }
 
     pub fn read_u8(&mut self) -> Result<Option<u8>> {
-        let mut buf = [0];
+        let mut buf = [0; 1];
         match self.stream.read(&mut buf) {
-            Ok  (0) => Ok(None),
-            Ok  (_) => { self.offset += 1; Ok(Some(buf[0])) },
-            Err (e) => Err(e),
+            Ok  (1) => {},
+            Ok  (_) => return Ok(None),
+            Err (e) => return Err(e),
         }
+        self.offset += 1;
+        Ok(Some(buf[0]))
+    }
+
+    pub fn read_u16(&mut self) -> Result<Option<u16>> {
+        let mut buf = [0; 2];
+        match self.stream.read(&mut buf) {
+            Ok  (2) => {},
+            Ok  (_) => return Ok(None),
+            Err (e) => return Err(e),
+        }
+        self.offset += 2;
+        let val = ((buf[0] as u16) << 8) + (buf[1] as u16);
+        Ok(Some(val))
     }
 }
 
@@ -72,12 +86,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn skip_until() {
-        let     src = Cursor::new(&b"123"[..]);
-        let mut src = Input::new(src, "test");
+    fn read_u8() {
+        let bytes   = [0x12, 0x34];
+        let stream  = Cursor::new(&bytes);
+        let mut src = Input::new(stream, "test");
 
-        assert_eq!(src.skip_until(b'3').unwrap(), true);
-        assert_eq!(src.read_u8().unwrap(), Some(b'3'));
+        assert_eq!(src.read_u8().unwrap(), Some(0x12));
+        assert_eq!(src.read_u8().unwrap(), Some(0x34));
+        assert_eq!(src.read_u8().unwrap(), None);
+    }
+
+    #[test]
+    fn read_u16() {
+        let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A];
+        let stream  = Cursor::new(&bytes);
+        let mut src = Input::new(stream, "test");
+
+        assert_eq!(src.read_u16().unwrap(), Some(0x1234));
+        assert_eq!(src.read_u16().unwrap(), Some(0x5678));
+        assert_eq!(src.read_u16().unwrap(), None);
+    }
+
+    #[test]
+    fn skip_until_found() {
+        let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A];
+        let stream  = Cursor::new(&bytes);
+        let mut src = Input::new(stream, "test");
+
+        assert_eq!(src.skip_until(0x56).unwrap(), true);
+        assert_eq!(src.read_u8().unwrap(), Some(0x56));
     }
 }
 
