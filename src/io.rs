@@ -68,6 +68,8 @@ impl<R: BufRead> Input<R> {
     }
 
     pub fn read_u16(&mut self) -> Result<Option<u16>> {
+        use std::mem;
+
         let mut buf = [0; 2];
         match self.stream.read(&mut buf) {
             Ok  (2) => {},
@@ -75,8 +77,8 @@ impl<R: BufRead> Input<R> {
             Err (e) => return Err(e),
         }
         self.offset += 2;
-        let val = ((buf[0] as u16) << 8) + (buf[1] as u16);
-        Ok(Some(val))
+        let val: u16 = unsafe { mem::transmute(buf) };
+        Ok(Some(val.to_be()))
     }
 }
 
