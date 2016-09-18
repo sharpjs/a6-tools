@@ -55,6 +55,13 @@ impl<R: BufRead> Input<R> {
             }
         }
     }
+
+    fn unexpected_eof(&self) -> Error {
+        Error::new(
+            ErrorKind::UnexpectedEof,
+            format!("At offset {}: unexpected end of file.", self.offset)
+        )
+    }
 }
 
 macro_rules! def_read {
@@ -68,12 +75,8 @@ macro_rules! def_read {
                     let $v: $t = unsafe { mem::transmute(buf) };
                     Ok($e)
                 },
-                Ok(_) => {
-                    Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected end of file."))
-                },
-                Err(e) => {
-                    Err(e)
-                },
+                Ok  (_) => Err(self.unexpected_eof()),
+                Err (e) => Err(e),
             }
         }
     )*}
