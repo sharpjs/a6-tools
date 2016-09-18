@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::{BufRead, Result};
+use std::io::{BufRead, Result, Error, ErrorKind};
 use std::io::ErrorKind::Interrupted;
 
 pub struct Input<R> {
@@ -55,68 +55,87 @@ impl<R: BufRead> Input<R> {
             }
         }
     }
+}
 
-    pub fn read_u8(&mut self) -> Result<Option<u8>> {
-        let mut buf = [0; 1];
-        match self.stream.read(&mut buf) {
-            Ok  (1) => {},
-            Ok  (_) => return Ok(None),
-            Err (e) => return Err(e),
+macro_rules! def_read {
+    ($( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*) => {$(
+        pub fn $name(&mut self) -> Result<$t> {
+            let mut buf = [0; $n];
+            match self.stream.read(&mut buf) {
+                Ok($n) => {
+                    use std::mem;
+                    self.offset += $n;
+                    let $v: $t = unsafe { mem::transmute(buf) };
+                    Ok($e)
+                },
+                Ok(_) => {
+                    Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected end of file."))
+                },
+                Err(e) => {
+                    Err(e)
+                },
+            }
         }
-        self.offset += 1;
-        Ok(Some(buf[0]))
-    }
+    )*}
+}
 
-    pub fn read_u16(&mut self) -> Result<Option<u16>> {
-        use std::mem;
-
-        let mut buf = [0; 2];
-        match self.stream.read(&mut buf) {
-            Ok  (2) => {},
-            Ok  (_) => return Ok(None),
-            Err (e) => return Err(e),
-        }
-        self.offset += 2;
-        let val: u16 = unsafe { mem::transmute(buf) };
-        Ok(Some(val.to_be()))
+impl<R: BufRead> Input<R> {
+    def_read! {
+        read_u8  (1, v: u8 ) { v         }
+        read_u16 (2, v: u16) { v.to_be() }
+        read_u32 (4, v: u32) { v.to_be() }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use std::io::{Cursor, ErrorKind};
     use super::*;
 
     #[test]
     fn read_u8() {
+        //  index      0     1
         let bytes   = [0x12, 0x34];
         let stream  = Cursor::new(&bytes);
         let mut src = Input::new(stream, "test");
 
-        assert_eq!(src.read_u8().unwrap(), Some(0x12));
-        assert_eq!(src.read_u8().unwrap(), Some(0x34));
-        assert_eq!(src.read_u8().unwrap(), None);
+        assert_eq!(src.read_u8().unwrap(), 0x12);
+        assert_eq!(src.read_u8().unwrap(), 0x34);
+        assert_eq!(src.read_u8().err().unwrap().kind(), ErrorKind::UnexpectedEof);
     }
 
     #[test]
     fn read_u16() {
+        //  index      0           1           -
         let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A];
         let stream  = Cursor::new(&bytes);
         let mut src = Input::new(stream, "test");
 
-        assert_eq!(src.read_u16().unwrap(), Some(0x1234));
-        assert_eq!(src.read_u16().unwrap(), Some(0x5678));
-        assert_eq!(src.read_u16().unwrap(), None);
+        assert_eq!(src.read_u16().unwrap(), 0x1234);
+        assert_eq!(src.read_u16().unwrap(), 0x5678);
+        assert_eq!(src.read_u16().err().unwrap().kind(), ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn read_u32() {
+        //  index      0                       1                       -
+        let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0xA5];
+        let stream  = Cursor::new(&bytes);
+        let mut src = Input::new(stream, "test");
+
+        assert_eq!(src.read_u32().unwrap(), 0x12345678);
+        assert_eq!(src.read_u32().unwrap(), 0x9ABCDEF0);
+        assert_eq!(src.read_u32().err().unwrap().kind(), ErrorKind::UnexpectedEof);
     }
 
     #[test]
     fn skip_until_found() {
-        let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A];
+        let bytes   = [0x12, 0x34, 0x56, 0x78];
         let stream  = Cursor::new(&bytes);
         let mut src = Input::new(stream, "test");
 
         assert_eq!(src.skip_until(0x56).unwrap(), true);
-        assert_eq!(src.read_u8().unwrap(), Some(0x56));
+        assert_eq!(src.read_u8().unwrap(), 0x56);
     }
 }
 
