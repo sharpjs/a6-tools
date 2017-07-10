@@ -14,6 +14,32 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+const BLOCK_RAW_HEAD_LEN: usize =  16;  // Raw block header length (bytes)
+const BLOCK_RAW_DATA_LEN: usize = 256;  // Raw block data   length (bytes)
+const BLOCK_MESSAGE_LEN:  usize = 311;  // SysEx block message length (bytes)
+
+/// A System Exclusive (SysEx) message.
+#[repr(C, packed)]
+pub struct Block {
+    /// Version of the software of which this block is a part.
+    pub version: u32,
+
+    /// Checksum of the binary of which this block is a part.
+    pub checksum: u32,
+
+    /// Length of the binary of which this block is a part.
+    pub length: u32,
+
+    /// Count of 256-byte blocks in this image.
+    pub block_count: u16,
+
+    /// 0-based index of this block.
+    pub block_index: u16,
+
+    /// Data payload of this block.
+    pub data: [u8; BLOCK_RAW_DATA_LEN],
+}
+
 /// Encodes a sequence of bytes into a sequence of 7-bit values.
 ///
 pub fn encode_7bit(src: &[u8], dst: &mut Vec<u8>)
