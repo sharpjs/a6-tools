@@ -1,7 +1,7 @@
 // a6-syx2bin - Converts an A6 update SysEx file to a raw binary file.
 //
 // This file is part of a6-tools.
-// Copyright (C) 2016 Jeffrey Sharp
+// Copyright (C) 2017 Jeffrey Sharp
 //
 // a6-tools is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published
