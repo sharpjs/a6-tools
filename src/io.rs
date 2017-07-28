@@ -80,21 +80,34 @@ impl<R: BufRead> Input<R> {
 }
 
 macro_rules! def_read {
-    ($( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*) => {$(
+    {
+        $( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*
+    } => {
+        $(
+            /// Reads a `$t`.
+            ///
+            /// # Errors
+            ///
+            /// Error behavior is identical to `std::io::Read::read_exact`:
+            ///
+            /// * `ErrorKind::Interrupted` errors are ignored.
+            ///
+            /// * Other errors indicate failure.  Actual number of bytes read is
+            ///   unspecified, other than <= size of `$t`.
+            ///
             pub fn $name(&mut self) -> Result<$t> {
-            let mut buf = [0; $n];
-            match self.stream.read(&mut buf) {
-                Ok($n) => {
                 use std::mem;
-                    self.offset += $n;
+
+                // Read into temporary buffer
+                let mut buf = [0; $n];
+                self.read_exact(&mut buf)?;
+
+                // Interpret as desired type
                 let $v: $t = unsafe { mem::transmute(buf) };
                 Ok($e)
-                },
-                Ok  (_) => Err(self.unexpected_eof()),
-                Err (e) => Err(e),
             }
+        )*
     }
-    )*}
 }
 
 impl<R: BufRead> Input<R> {
