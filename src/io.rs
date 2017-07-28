@@ -15,7 +15,7 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::io::{BufRead, Result, Error, ErrorKind};
-use std::io::ErrorKind::Interrupted;
+use std::io::ErrorKind::{Interrupted, UnexpectedEof};
 
 pub struct Input<R> {
     stream: R,
@@ -37,13 +37,13 @@ impl<R: BufRead> Input<R> {
         loop {
             let (found, count) = {
                 let buf = match self.stream.fill_buf() {
-                    Ok(b) => b,
+                    Ok(b)                                 => b,
                     Err(ref e) if e.kind() == Interrupted => continue,
-                    Err(e) => return Err(e),
+                    Err(e)                                => return Err(e),
                 };
                 match buf.iter().position(|b| *b == byte) {
                     Some(i) => (true, i),
-                    None => (false, buf.len()),
+                    None    => (false, buf.len()),
                 }
             };
 
@@ -53,6 +53,21 @@ impl<R: BufRead> Input<R> {
             if found || count == 0 {
                 return Ok(found);
             }
+        }
+    }
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        match self.stream.read_exact(buf) {
+            Ok(_) => {
+                // Advance position
+                self.offset += buf.len();
+                Ok(())
+            },
+            Err(ref e) if e.kind() == UnexpectedEof => {
+                // Change error message
+                Err(self.unexpected_eof())
+            },
+            e => e // Use error verbatim
         }
     }
 
@@ -66,19 +81,19 @@ impl<R: BufRead> Input<R> {
 
 macro_rules! def_read {
     ($( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*) => {$(
-        pub fn $name(&mut self) -> Result<$t> {
+            pub fn $name(&mut self) -> Result<$t> {
             let mut buf = [0; $n];
             match self.stream.read(&mut buf) {
                 Ok($n) => {
-                    use std::mem;
+                use std::mem;
                     self.offset += $n;
-                    let $v: $t = unsafe { mem::transmute(buf) };
-                    Ok($e)
+                let $v: $t = unsafe { mem::transmute(buf) };
+                Ok($e)
                 },
                 Ok  (_) => Err(self.unexpected_eof()),
                 Err (e) => Err(e),
             }
-        }
+    }
     )*}
 }
 
