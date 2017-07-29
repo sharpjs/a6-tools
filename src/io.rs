@@ -32,14 +32,23 @@ impl<R: BufRead> Input<R> {
         }
     }
 
-    pub fn skip_until(&mut self, byte: u8) -> Result<bool> {
+    /// Skips bytes until the delimiter `byte` or EOF is found.
+    ///
+    /// This function reads bytes from the underlying stream until the delimiter
+    /// or end-of-file is found.  The read bytes, including the delimitar, are
+    /// discarded.
+    ///
+    /// This function returns a tuple indicating whether the delimitar was found
+    /// and how many bytes were discarded.
+    pub fn skip_until(&mut self, byte: u8) -> Result<(bool, usize)> {
         // Like read_until, but throws away read bytes.
+        // Returns 
         loop {
             let (found, count) = {
                 let buf = match self.stream.fill_buf() {
-                    Ok(b)                                 => b,
+                    Ok(b) => b,
                     Err(ref e) if e.kind() == Interrupted => continue,
-                    Err(e)                                => return Err(e),
+                    Err(e) => return Err(e),
                 };
                 match buf.iter().position(|b| *b == byte) {
                     Some(i) => (true, i),
@@ -51,7 +60,8 @@ impl<R: BufRead> Input<R> {
             self.offset += count;
 
             if found || count == 0 {
-                return Ok(found);
+                // This isn't right.  Fix it.
+                return Ok((found, count));
             }
         }
     }
@@ -165,7 +175,7 @@ mod tests {
         let stream  = Cursor::new(&bytes);
         let mut src = Input::new(stream, "test");
 
-        assert_eq!(src.skip_until(0x56).unwrap(), true);
+        assert_eq!(src.skip_until(0x56).unwrap(), (true, 2));
         assert_eq!(src.read_u8().unwrap(), 0x56);
     }
 }
