@@ -32,40 +32,48 @@ impl<R: BufRead> Input<R> {
         }
     }
 
-    /// Skips bytes until the delimiter `byte` or EOF is found.
+    /// Reads and discards bytes until the given `predicate` returns `true` for
+    /// a byte (the byte *matches*), or until end-of-stream is reached.
     ///
-    /// This function reads bytes from the underlying stream until the delimiter
-    /// or end-of-file is found.  The read bytes, including the delimitar, are
-    /// discarded.
+    /// Returns a tuple `(found, count)` indicating whether a byte matched and
+    /// how many non-matching bytes were discarded.
     ///
-    /// This function returns a tuple indicating whether the delimitar was found
-    /// and how many bytes were discarded.
-    pub fn skip_until(&mut self, byte: u8) -> Result<(bool, usize)> {
-        // Like read_until, but throws away read bytes.
-        // Returns 
+    /// On return, if a byte matched, the stream is positioned at that byte, so
+    /// that the byte will be the next one read.  Otherwise, the stream is
+    /// positioned at end-of-stream.
+    pub fn skip_until<P: Fn(u8) -> bool>(&mut self, predicate: P) -> Result<(bool, usize)> {
+        // Implementation similar to std::io::read_until().
+        let mut total = 0;
+
         loop {
             let (found, count) = {
+                // Get next chunk from the stream
                 let buf = match self.stream.fill_buf() {
-                    Ok(b) => b,
+                    Ok (b)                                => b,
                     Err(ref e) if e.kind() == Interrupted => continue,
-                    Err(e) => return Err(e),
+                    Err(e)                                => return Err(e),
                 };
-                match buf.iter().position(|b| *b == byte) {
-                    Some(i) => (true, i),
+
+                // Search chunk for the delimiter
+                match buf.iter().position(|&b| predicate(b)) {
+                    Some(i) => (true,  i        ),
                     None    => (false, buf.len()),
                 }
             };
 
+            // Discard skipped bytes
             self.stream.consume(count);
             self.offset += count;
+                 total  += count;
 
-            if found || count == 0 {
-                // This isn't right.  Fix it.
-                return Ok((found, count));
+            // Check if done
+            if found || count == 0 /*EOF*/ {
+                return Ok((found, total));
             }
         }
     }
 
+    /// Read the exact number of bytes required to fill `buf`.
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         match self.stream.read_exact(buf) {
             Ok(_) => {
@@ -175,7 +183,7 @@ mod tests {
         let stream  = Cursor::new(&bytes);
         let mut src = Input::new(stream, "test");
 
-        assert_eq!(src.skip_until(0x56).unwrap(), (true, 2));
+        assert_eq!(src.skip_until(|b| b == 0x56).unwrap(), (true, 2));
         assert_eq!(src.read_u8().unwrap(), 0x56);
     }
 }
