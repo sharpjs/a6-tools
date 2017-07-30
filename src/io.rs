@@ -195,5 +195,14 @@ mod tests {
         assert_eq!(src.skip_until(|b| b == 0x56).unwrap(), (true, 2));
         assert_eq!(src.read_u8().unwrap(), 0x56);
     }
+
+    #[test]
+    fn skip_until_not_found() {
+        let bytes   = [0x12, 0x34, 0x56, 0x78];
+        let stream  = Cursor::new(&bytes);
+        let mut src = Input::new(stream, "test");
+
+        assert_eq!(src.skip_until(|b| b == 0x0A).unwrap(), (false, 4));
+    }
 }
 
