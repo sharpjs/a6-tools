@@ -74,6 +74,9 @@ impl<R: BufRead> Input<R> {
     }
 
     /// Read the exact number of bytes required to fill `buf`.
+    ///
+    /// Same as `std::io::Read::read_exact()`, except that unexpected-EOF errors
+    /// have improved messaging.
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         match self.stream.read_exact(buf) {
             Ok(_) => {
@@ -89,6 +92,7 @@ impl<R: BufRead> Input<R> {
         }
     }
 
+    /// Returns an unexpected-EOF error at the current offset.
     fn unexpected_eof(&self) -> Error {
         Error::new(
             ErrorKind::UnexpectedEof,
