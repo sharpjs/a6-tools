@@ -17,6 +17,7 @@
 use std::io::{BufRead, Result, Error, ErrorKind};
 use std::io::ErrorKind::{Interrupted, UnexpectedEof};
 
+/// A named input stream.
 pub struct Input<R> {
     stream: R,
     offset: usize,
@@ -24,6 +25,10 @@ pub struct Input<R> {
 }
 
 impl<R: BufRead> Input<R> {
+    /// Constructs a new `Input` with the given `stream` and `name`.
+    ///
+    /// Initial `offset` is `0`, regardless of the actual position of the given
+    /// stream.
     pub fn new<N: ToString>(stream: R, name: N) -> Self {
         Input {
             stream: stream,
