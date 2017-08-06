@@ -84,7 +84,7 @@ impl<R: BufRead> Input<R> {
     ///
     /// Same as `std::io::Read::read_exact()`, except that unexpected-EOF errors
     /// have improved messaging.
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+    pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         match self.stream.read_exact(buf) {
             Ok(_) => {
                 // Advance position
