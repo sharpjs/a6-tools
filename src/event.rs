@@ -14,10 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-// Squelch noise while experimenting
-#![allow(dead_code)]
-
-pub mod event;
-pub mod io;
-pub mod sysex;
+pub enum Event {
+    Skipped(usize, usize),  // skipped {} byte(s) at offset {}
+    EofInBlock(usize),      // EOF in block at offset {}
+}
 
