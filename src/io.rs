@@ -80,6 +80,10 @@ impl<R: BufRead> Input<R> {
         }
     }
 
+    pub fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> Result<usize> {
+        self.stream.read_until(byte, buf)
+    }
+
     /// Read the exact number of bytes required to fill `buf`.
     ///
     /// Same as `std::io::Read::read_exact()`, except that unexpected-EOF errors
