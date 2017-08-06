@@ -37,6 +37,8 @@ impl<R: BufRead> Input<R> {
         }
     }
 
+    pub fn offset(&self) -> usize { self.offset }
+
     /// Reads and discards bytes until the given `predicate` returns `true` for
     /// a byte (the byte *matches*), or until end-of-stream is reached.
     ///
