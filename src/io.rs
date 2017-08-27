@@ -37,6 +37,7 @@ impl<R: BufRead> Input<R> {
         }
     }
 
+    /// Returns the offset of the next unread byte in the input stream.
     pub fn offset(&self) -> usize { self.offset }
 
     /// Reads and discards bytes until the given `predicate` returns `true` for
@@ -56,14 +57,14 @@ impl<R: BufRead> Input<R> {
             let (found, count) = {
                 // Get next chunk from the stream
                 let buf = match self.stream.fill_buf() {
-                    Ok (b)                                => b,
+                    Ok(b) => b,
                     Err(ref e) if e.kind() == Interrupted => continue,
-                    Err(e)                                => return Err(e),
+                    Err(e) => return Err(e),
                 };
 
                 // Search chunk for the delimiter
                 match buf.iter().position(|&b| predicate(b)) {
-                    Some(i) => (true,  i        ),
+                    Some(i) => (true,  i),
                     None    => (false, buf.len()),
                 }
             };
