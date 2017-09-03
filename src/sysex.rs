@@ -74,7 +74,7 @@ impl<I> SysExReader<I>
 where
     I: Iterator<Item=io::Result<u8>>
 {
-    pub fn new<S, H>(input: I, id: &[u8], handler: SysExHandler) -> Self {
+    pub fn new(input: I, id: &[u8], handler: SysExHandler) -> Self {
         Self {
             input:   input,
             offset:  0,
