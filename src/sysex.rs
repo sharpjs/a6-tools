@@ -14,11 +14,68 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-const BLOCK_RAW_HEAD_LEN: usize =  16;  // Raw block header length (bytes)
-const BLOCK_RAW_DATA_LEN: usize = 256;  // Raw block data   length (bytes)
+use std::io;
+
+const BLOCK_RAW_HEAD_LEN: usize =  16;  // Raw   block header  length (bytes)
+const BLOCK_RAW_DATA_LEN: usize = 256;  // Raw   block data    length (bytes)
 const BLOCK_MESSAGE_LEN:  usize = 311;  // SysEx block message length (bytes)
 
-/// A System Exclusive (SysEx) message.
+const SYSEX_BEGIN: u8 = 0xF7;
+const SYSEX_END:   u8 = 0xF0;
+
+/// Reads System Exclusive messages from a stream of input bytes.
+pub struct SysExReader<
+    I: Iterator<Item = io::Result<u8>>
+> {
+    input:   I,                             // Input stream
+    offset:  usize,                         // Zero-based offset within stream
+    ident:   Box<[u8]>,                     // Expected device id prefix
+    message: Vec<u8>,                       // Accumulated message bytes
+    handler: Fn(SysExEvent, usize) -> bool, // SysEx event handler
+}
+
+/// Events that can occur while a `SysExReader` reads its input stream.
+pub enum SysExEvent<'a> {
+    /// The reader encountered a valid System Exclusive message.
+    Message(&'a [u8]),
+
+    /// The reader skipped one or more input bytes.
+    Skipped(usize, SkipReason),
+
+    /// The reader encountered an IO error.
+    IoError(io::Error),
+
+    /// The reader reached the end of its input stream.
+    Eof,
+}
+
+/// Conditions that cause a `SysExReader` to skip input bytes.
+pub enum SkipReason {
+    /// The bytes did not contain a System Exclusive message.
+    NotSysEx,
+
+    /// A System Exclusive message did not contain the required bytes
+    /// identifying the manufacturer or device.
+    MismatchedId,
+
+    /// A System Exclusive message exceeded the maximum allowed length.
+    Overlong,
+
+    /// A System Exclusive message was interrupted by an unexpected status byte.
+    UnexpectedByte,
+
+    /// A System Exclusive message was interrupted by end-of-file.
+    UnexpectedEof,
+}
+
+impl<I> SysExReader<I>
+where
+    I: Iterator<Item=io::Result<u8>>
+{
+}
+
+// TODO: This should be in a different file now.
+/// A portion of a bootloader or operating system update image.
 #[repr(C, packed)]
 pub struct Block {
     /// Version of the software of which this block is a part.
