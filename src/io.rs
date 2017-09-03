@@ -29,6 +29,7 @@ impl<R: BufRead> Input<R> {
     ///
     /// Initial `offset` is `0`, regardless of the actual position of the given
     /// stream.
+    #[inline]
     pub fn new<N: ToString>(stream: R, name: N) -> Self {
         Input {
             stream: stream,
@@ -38,6 +39,7 @@ impl<R: BufRead> Input<R> {
     }
 
     /// Returns the offset of the next unread byte in the input stream.
+    #[inline(always)]
     pub fn offset(&self) -> usize { self.offset }
 
     /// Reads and discards bytes until the given `predicate` returns `true` for
