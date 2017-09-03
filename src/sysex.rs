@@ -27,12 +27,14 @@ const SYSEX_END:   u8 = 0xF0;
 pub struct SysExReader<
     I: Iterator<Item = io::Result<u8>>
 > {
-    input:   I,                             // Input stream
-    offset:  usize,                         // Zero-based offset within stream
-    ident:   Box<[u8]>,                     // Expected device id prefix
-    message: Vec<u8>,                       // Accumulated message bytes
-    handler: Fn(SysExEvent, usize) -> bool, // SysEx event handler
+    input:   I,                 // Input stream
+    offset:  usize,             // Zero-based offset within stream
+    ident:   Vec<u8>,           // Expected device id prefix
+    message: Vec<u8>,           // Accumulated message bytes
+    handler: SysExHandler,      // SysEx event handler
 }
+
+pub type SysExHandler = fn(SysExEvent, usize) -> bool;
 
 /// Events that can occur while a `SysExReader` reads its input stream.
 pub enum SysExEvent<'a> {
@@ -72,6 +74,30 @@ impl<I> SysExReader<I>
 where
     I: Iterator<Item=io::Result<u8>>
 {
+    pub fn new<S, H>(input: I, id: &[u8], handler: SysExHandler) -> Self {
+        Self {
+            input:   input,
+            offset:  0,
+            ident:   id.to_vec(),
+            message: vec![0; BLOCK_MESSAGE_LEN],
+            handler: handler,
+        }
+    }
+
+    pub fn run(&mut self) -> bool {
+        // TODO
+        false
+    }
+
+    fn emit(&self, event: SysExEvent) -> bool {
+        (self.handler)(event, self.offset)
+    }
+
+    fn emit_message(&mut self) -> bool {
+        let result = self.emit(SysExEvent::Message(&self.message[..]));
+        self.message.clear();
+        result
+    }
 }
 
 // TODO: This should be in a different file now.
