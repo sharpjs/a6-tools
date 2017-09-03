@@ -17,7 +17,6 @@
 // Squelch noise while experimenting
 #![allow(dead_code)]
 
-pub mod event;
 pub mod io;
 pub mod sysex;
 
