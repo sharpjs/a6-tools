@@ -85,8 +85,66 @@ where
     }
 
     pub fn run(&mut self) -> bool {
-        // TODO
-        false
+        // SysEx Messages:
+        //
+        // F0 xx xx xx xx .. .. .. .. F7
+        //    ^^^^^^^^^^^ ^^^^^^^^^^^
+        //    ident bytes data bytes <-- all 00-7F
+        //
+        // 80-EF \_ Should not occur
+        // F1-F6 /    inside SysEx messages
+        //
+        // F8-FF -- System Real-Time messages;
+        //            ignore these
+
+        enum State { Initial, Id, Data }
+
+        let mut state = State::Initial;
+        let mut start = self.offset;
+
+        loop {
+            // Get next byte
+            let byte = match self.input.next() {
+                None         => return true,
+                Some(Ok (b)) => b,
+                Some(Err(e)) => {
+                    if !self.emit(SysExEvent::IoError(e)) { return false }
+                    continue
+                }
+            };
+
+            // Skip System Real-Time messages, which can appear at any time in
+            // the input stream, even inside other commands.
+            if byte >= 0xF8 {
+                self.offset += 1;
+                continue
+            }
+
+            // State machine
+            match state {
+                State::Initial => {
+                    // Byte F0 begins a SysEx message
+                    if byte == 0xF0 {
+                        // Emit an event if any bytes have been skipped
+                        if self.offset > start {
+                            if !self.emit_not_sysex(start) { return false }
+                            start = self.offset;
+                        }
+
+                        // On next pass, begin verifying id prefix
+                        state = State::Id;
+                    }
+                },
+                State::Id => {
+
+                },
+                State::Data => {
+                }
+            }
+
+            // Mark byte as consumed
+            self.offset += 1;
+        }
     }
 
     fn emit(&self, event: SysExEvent) -> bool {
@@ -97,6 +155,11 @@ where
         let result = self.emit(SysExEvent::Message(&self.message[..]));
         self.message.clear();
         result
+    }
+
+    fn emit_not_sysex(&mut self, start: usize) -> bool {
+        let count = self.offset - start;
+        self.emit(SysExEvent::Skipped(count, SkipReason::NotSysEx))
     }
 }
 
