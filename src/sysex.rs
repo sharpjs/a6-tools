@@ -149,6 +149,41 @@ where
         }
     }
 
+    fn skip_to_sysex(&mut self) -> bool {
+        panic!()
+    }
+
+    // Result of next input can be: a byte, EOF, abort
+    //
+    // Ok(Some(u8))     // a byte
+    // Ok(None)         // end of file
+    // Err(())          // early termination
+    //
+
+    //fn peek(&self) -> Option<u8> {
+    //    self.byte
+    //}
+
+    fn next(&mut self) -> Result<Option<u8>, ()>  {
+        loop {
+            match self.input.next() {
+                Some(Ok(b)) => {
+                    if !is_sysrt(b) {
+                        return Ok(Some(b))
+                    }
+                },
+                Some(Err(e)) => {
+                    if !self.emit(SysExEvent::IoError(e)) {
+                        return Err(())
+                    }
+                },
+                None => {
+                    return Ok(None)
+                },
+            }
+        }
+    }
+
     fn emit(&self, event: SysExEvent) -> bool {
         (self.handler)(event, self.offset)
     }
