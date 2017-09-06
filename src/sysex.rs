@@ -97,7 +97,7 @@ where
         // F8-FF -- System Real-Time messages;
         //            ignore these
 
-        enum State { Initial, Id, Data }
+        enum State { Initial, Id, Data, Eof }
 
         let mut state = State::Initial;
         let mut start = self.offset;
@@ -139,6 +139,8 @@ where
 
                 },
                 State::Data => {
+                },
+                State::Eof => {
                 }
             }
 
