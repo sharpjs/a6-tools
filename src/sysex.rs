@@ -188,8 +188,13 @@ pub struct Block {
     pub data: [u8; BLOCK_RAW_DATA_LEN],
 }
 
+/// Checks if `byte` is a MIDI System Real-Time message.
+#[inline(always)]
+pub fn is_sysrt(byte: u8) -> bool {
+    byte >= 0xF8
+}
+
 /// Encodes a sequence of bytes into a sequence of 7-bit values.
-///
 pub fn encode_7bit(src: &[u8], dst: &mut Vec<u8>)
 {
     // Iteration
@@ -234,7 +239,6 @@ pub fn encode_7bit(src: &[u8], dst: &mut Vec<u8>)
 }
 
 /// Decodes a sequence of 7-bit values into a sequence of bytes.
-///
 pub fn decode_7bit(src: &[u8], dst: &mut Vec<u8>)
 {
     // Iteration
