@@ -14,24 +14,44 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io;
-
-const BLOCK_RAW_HEAD_LEN: usize =  16;  // Raw   block header  length (bytes)
-const BLOCK_RAW_DATA_LEN: usize = 256;  // Raw   block data    length (bytes)
-const BLOCK_MESSAGE_LEN:  usize = 311;  // SysEx block message length (bytes)
-
 const SYSEX_BEGIN: u8 = 0xF7;
 const SYSEX_END:   u8 = 0xF0;
 
-/// Reads System Exclusive messages from a stream of input bytes.
-pub struct SysExReader<
-    I: Iterator<Item = io::Result<u8>>
-> {
-    input:   I,                 // Input stream
-    offset:  usize,             // Zero-based offset within stream
-    ident:   Vec<u8>,           // Expected device id prefix
-    message: Vec<u8>,           // Accumulated message bytes
-    handler: SysExHandler,      // SysEx event handler
+// Chain:
+// - Read input
+// - Ignore SysRT
+// - Detect SysEx
+// - Decode 7to8
+// - Verify header
+// - Patch image
+// - Verify checksum
+// - Write image
+
+/// Identifies MIDI System Exclusive messages for a particular device and
+/// invokes a handler for each such message and for related events.
+///
+/// This type implements a push model rather than an Iterator-based pull model.
+/// Here, the push model simplifies lifetimes, dependencies, and code paths.
+pub struct SysExDetector {
+    pos:    usize,          // Position within stream
+    len:    usize,          // Current message length
+    cap:    usize,          // Maximum message length
+    state:  State,          // Saved state from prior invocation
+    id:     Box<[u8]>,      // Required message prefix
+    buf:    Box<[u8]>,      // Buffer for accumulated message bytes
+    handle: SysExHandler,   // Handler for messages and other events
+}
+
+enum State {
+    Initial
+}
+
+use self::State::*;
+
+pub trait SysExHandle {
+    fn handle_message (msg: &[u8],      pos: usize);
+    fn handle_skipped (why: SkipReason, pos: usize);
+    fn handle_end     (                 pos: usize);
 }
 
 pub type SysExHandler = fn(SysExEvent, usize) -> bool;
@@ -43,9 +63,6 @@ pub enum SysExEvent<'a> {
 
     /// The reader skipped one or more input bytes.
     Skipped(usize, SkipReason),
-
-    /// The reader encountered an IO error.
-    IoError(io::Error),
 
     /// The reader reached the end of its input stream.
     Eof,
@@ -61,7 +78,10 @@ pub enum SkipReason {
     MismatchedId,
 
     /// A System Exclusive message exceeded the maximum allowed length.
-    Overlong,
+    Overflow,
+
+    /// A System Exclusive message was not of the minimum requred length.
+    Underflow,
 
     /// A System Exclusive message was interrupted by an unexpected status byte.
     UnexpectedByte,
@@ -70,157 +90,44 @@ pub enum SkipReason {
     UnexpectedEof,
 }
 
-impl<I> SysExReader<I>
-where
-    I: Iterator<Item=io::Result<u8>>
-{
-    pub fn new(input: I, id: &[u8], handler: SysExHandler) -> Self {
+impl SysExDetector {
+    pub fn new(id: &[u8], cap: usize, handle: SysExHandler) -> Self {
         Self {
-            input:   input,
-            offset:  0,
-            ident:   id.to_vec(),
-            message: vec![0; BLOCK_MESSAGE_LEN],
-            handler: handler,
+            pos:    0,
+            len:    0,
+            cap:    cap,
+            state:  Initial,
+            id:     id.to_owned().into_boxed_slice(),
+            buf:    vec![0; cap].into_boxed_slice(),
+            handle: handle,
         }
     }
 
-    pub fn run(&mut self) -> bool {
-        // SysEx Messages:
-        //
-        // F0 xx xx xx xx .. .. .. .. F7
-        //    ^^^^^^^^^^^ ^^^^^^^^^^^
-        //    ident bytes data bytes <-- all 00-7F
-        //
-        // 80-EF \_ Should not occur
-        // F1-F6 /    inside SysEx messages
-        //
-        // F8-FF -- System Real-Time messages;
-        //            ignore these
-
-        enum State { Initial, Id, Data, Eof }
-
-        let mut state = State::Initial;
-        let mut start = self.offset;
-
-        loop {
-            // Get next byte
-            let byte = match self.input.next() {
-                None         => return true,
-                Some(Ok (b)) => b,
-                Some(Err(e)) => {
-                    if !self.emit(SysExEvent::IoError(e)) { return false }
-                    continue
-                }
-            };
-
-            // Skip System Real-Time messages, which can appear at any time in
-            // the input stream, even inside other commands.
-            if byte >= 0xF8 {
-                self.offset += 1;
-                continue
+    fn consume(&mut self, bytes: &[u8]) {
+        match self.state {
+            Initial => {
+                // stopped here
             }
-
-            // State machine
-            match state {
-                State::Initial => {
-                    // Byte F0 begins a SysEx message
-                    if byte == 0xF0 {
-                        // Emit an event if any bytes have been skipped
-                        if self.offset > start {
-                            if !self.emit_not_sysex(start) { return false }
-                            start = self.offset;
-                        }
-
-                        // On next pass, begin verifying id prefix
-                        state = State::Id;
-                    }
-                },
-                State::Id => {
-
-                },
-                State::Data => {
-                },
-                State::Eof => {
-                }
-            }
-
-            // Mark byte as consumed
-            self.offset += 1;
         }
     }
 
-    fn skip_to_sysex(&mut self) -> bool {
-        panic!()
-    }
-
-    // Result of next input can be: a byte, EOF, abort
-    //
-    // Ok(Some(u8))     // a byte
-    // Ok(None)         // end of file
-    // Err(())          // early termination
-    //
-
-    //fn peek(&self) -> Option<u8> {
-    //    self.byte
-    //}
-
-    fn next(&mut self) -> Result<Option<u8>, ()>  {
-        loop {
-            match self.input.next() {
-                Some(Ok(b)) => {
-                    if !is_sysrt(b) {
-                        return Ok(Some(b))
-                    }
-                },
-                Some(Err(e)) => {
-                    if !self.emit(SysExEvent::IoError(e)) {
-                        return Err(())
-                    }
-                },
-                None => {
-                    return Ok(None)
-                },
-            }
-        }
+    fn finish(&mut self) {
     }
 
     fn emit(&self, event: SysExEvent) -> bool {
-        (self.handler)(event, self.offset)
+        (self.handle)(event, self.pos)
     }
 
-    fn emit_message(&mut self) -> bool {
-        let result = self.emit(SysExEvent::Message(&self.message[..]));
-        self.message.clear();
-        result
-    }
+    //fn emit_message(&mut self) -> bool {
+    //    let result = self.emit(SysExEvent::Message(&self.message[..]));
+    //    self.message.clear();
+    //    result
+    //}
 
-    fn emit_not_sysex(&mut self, start: usize) -> bool {
-        let count = self.offset - start;
-        self.emit(SysExEvent::Skipped(count, SkipReason::NotSysEx))
-    }
-}
-
-// TODO: This should be in a different file now.
-/// A portion of a bootloader or operating system update image.
-#[repr(C, packed)]
-pub struct Block {
-    /// Version of the software of which this block is a part.
-    pub version: u32,
-
-    /// Checksum of the binary of which this block is a part.
-    pub checksum: u32,
-
-    /// Length of the binary of which this block is a part.
-    pub length: u32,
-
-    /// Count of 256-byte blocks in this image.
-    pub block_count: u16,
-
-    /// 0-based index of this block.
-    pub block_index: u16,
-
-    /// Data payload of this block.
-    pub data: [u8; BLOCK_RAW_DATA_LEN],
+    //fn emit_not_sysex(&mut self, start: usize) -> bool {
+    //    let count = self.offset - start;
+    //    self.emit(SysExEvent::Skipped(count, SkipReason::NotSysEx))
+    //}
 }
 
 /// Checks if `byte` is a MIDI System Real-Time message.
