@@ -15,7 +15,6 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 use self::State::*;
-use self::SysExEvent::*;
 use self::SkipReason::*;
 
 const SYSEX_BEGIN: u8 = 0xF7;
@@ -32,45 +31,39 @@ const SYSEX_END:   u8 = 0xF0;
 // - Write image
 
 /// Identifies MIDI System Exclusive messages for a particular device and
-/// invokes a handler for each such message and for related events.
+/// invokes a handler for each such message or related event.
 ///
 /// This type implements a push model rather than an Iterator-based pull model.
 /// Here, the push model simplifies lifetimes, dependencies, and code paths.
-pub struct SysExDetector {
-    state:  State,          // State after prior function
-    start:  usize,          // Start position of event in progress
-    pos:    usize,          // Position within stream (>= start)
-    len:    usize,          // Current message length
-    cap:    usize,          // Maximum message length
-    buf:    Box<[u8]>,      // Buffer for accumulated message bytes
-    id:     Box<[u8]>,      // Required message prefix
-    handle: SysExHandler,   // Handler for messages and other events
+pub struct SysExDetector<H: SysExHandler> {
+    state:  State,      // State after prior function
+    start:  usize,      // Start position of event in progress
+    pos:    usize,      // Position within stream (>= start)
+    len:    usize,      // Current message length
+    cap:    usize,      // Maximum message length
+    buf:    Box<[u8]>,  // Buffer for accumulated message bytes
+    id:     Box<[u8]>,  // Required message prefix
+    dst:    H,          // Destination: handler for messages and events
 }
 
+/// Trait for types that handle incoming MIDI System Exclusive messages and
+/// related events from a `SysExDetector`.
+pub trait SysExHandler {
+    /// Called when the detector encounters a System Exclusive message.
+    fn on_message(&mut self, pos: usize, msg: &[u8]) -> bool;
+
+    /// Called when the detector skips a block of bytes.
+    fn on_skip(&mut self, pos: usize, len: usize, reason: SkipReason) -> bool;
+
+    /// Called when the detector has exhausted its input data.
+    fn on_end(&mut self, pos: usize) -> bool;
+}
+
+// Internal state of `SysExDetector`.
 enum State {
     Initial,    // Looking for start of SysEx message
     SysExId,    // Verifying ID of SysEx message
     SysExData,  // Accumulating data of SysEx message
-}
-
-pub trait SysExConsumer {
-    fn on_msg  (msg: &[u8],      pos: usize);
-    fn on_skip (why: SkipReason, pos: usize);
-    fn on_end  (                 pos: usize);
-}
-
-pub type SysExHandler = fn(SysExEvent, usize) -> bool;
-
-/// Events that can occur while a `SysExReader` reads its input stream.
-pub enum SysExEvent<'a> {
-    /// The reader encountered a valid System Exclusive message.
-    Message(&'a [u8]),
-
-    /// The reader skipped one or more input bytes.
-    Skipped(usize, SkipReason),
-
-    /// The reader reached the end of its input stream.
-    Eof,
 }
 
 /// Conditions that cause a `SysExReader` to skip input bytes.
@@ -95,48 +88,68 @@ pub enum SkipReason {
     UnexpectedEof,
 }
 
-impl SysExDetector {
-    pub fn new(id: &[u8], cap: usize, handle: SysExHandler) -> Self {
+impl<H: SysExHandler> SysExDetector<H> {
+    /// Creates a `SysExDetector` that will yield messages that begin with the
+    /// given `id` byte sequence and contain at most `cap` subsequent bytes.
+    ///
+    /// When the created detector encounters messages and other events, it will
+    /// yield them by invoking methods on the given `handler`.
+    pub fn new(id: &[u8], cap: usize, handler: H) -> Self {
         Self {
-            state:  Initial,
-            start:  0,
-            pos:    0,
-            len:    0,
-            cap:    cap,
-            buf:    vec![0; cap].into_boxed_slice(),
-            id:     id.to_owned().into_boxed_slice(),
-            handle: handle,
+            state: Initial,
+            start: 0,
+            pos:   0,
+            len:   0,
+            cap:   cap,
+            buf:   vec![0; cap].into_boxed_slice(),
+            id:    id.to_owned().into_boxed_slice(),
+            dst:   handler,
         }
     }
 
-    //fn consume(&mut self, mut bytes: &[u8]) {
-    //    while bytes.len() > 0 {
-    //        let len = match self.state {
-    //            Initial => self.skip_to_sysex(bytes),
-    //            SysExId => 0,
-    //        };
-    //        bytes = &bytes[len..];
-    //    }
-    //}
+    fn consume(&mut self, mut bytes: &[u8]) -> bool {
+        while bytes.len() > 0 {
 
-    //fn skip_to_sysex(&mut self, bytes: &[u8]) -> usize {
-    //    match bytes.iter().position(|&b| b == SYSEX_BEGIN) {
-    //        Some(len) => {
-    //            let total = self.len + len;
-    //            if total > 0 {
-    //                self.emit(SysExEvent::Skipped(total, SkipReason::NotSysEx));
-    //                self.len = 0;
-    //            }
-    //            self.state = SysExId;
-    //            len
-    //        },
-    //        None => {
-    //            let len = bytes.len();
-    //            self.len += len;
-    //            len
-    //        },
-    //    }
-    //}
+            let (ok, len) = match self.state {
+                Initial   => (true, 0), //self.skip_to_sysex(bytes),
+                SysExId   => (true, 0),
+                SysExData => (true, 0),
+            };
+
+            if !ok { return false; }
+
+            bytes = &bytes[len..];
+        }
+
+        return true;
+    }
+
+    fn skip_non_sysex(&mut self, bytes: &[u8]) -> (bool, usize) {
+        let mut cnt = 0;
+        let mut pos = self.pos;
+
+        for &byte in bytes {
+            if byte == SYSEX_BEGIN {
+                let start  = self.start;
+                let count  = pos - start;
+                let ok     = count == 0 || self.dst.on_skip(start, count, NotSysEx);
+                self.state = SysExId;
+                self.start = pos;
+                self.pos   = pos + 1; // skip over F0
+                self.len   = 0;
+                return (ok, cnt);
+            }
+            cnt += 1;
+            pos += 1;
+        }
+
+        self.pos = pos;
+        (true, cnt)
+    }
+
+    fn begin_sysex(&mut self) {
+        self.start = self.pos;
+    }
 
     //fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> usize {
     //    // In a SysEx message, but skipping due to mismatched id or because the
@@ -174,9 +187,9 @@ impl SysExDetector {
     fn finish(&mut self) {
     }
 
-    fn emit(&self, event: SysExEvent) -> bool {
-        (self.handle)(event, self.pos)
-    }
+    //fn emit(&self, event: SysExEvent) -> bool {
+    //    (self.handle)(event, self.pos)
+    //}
 
     //fn emit_message(&mut self) -> bool {
     //    let result = self.emit(SysExEvent::Message(&self.message[..]));
@@ -184,15 +197,15 @@ impl SysExDetector {
     //    result
     //}
 
-    fn on_skipped(&mut self, count: usize, reason: SkipReason) -> bool {
-        let total = self.len + count;
-        total == 0 || {
-            let result = self.emit(SysExEvent::Skipped(count, reason));
-            self.pos += total;
-            self.len = 0;
-            result
-        }
-    }
+    //fn on_skipped(&mut self, count: usize, reason: SkipReason) -> bool {
+    //    let total = self.len + count;
+    //    total == 0 || {
+    //        let result = self.emit(SysExEvent::Skipped(count, reason));
+    //        self.pos += total;
+    //        self.len = 0;
+    //        result
+    //    }
+    //}
 }
 
 /// Checks if `byte` is a MIDI System Real-Time message.
