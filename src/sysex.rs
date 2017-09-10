@@ -89,8 +89,9 @@ pub enum SkipReason {
 }
 
 impl<H: SysExHandler> SysExDetector<H> {
-    /// Creates a `SysExDetector` that will yield messages that begin with the
-    /// given `id` byte sequence and contain at most `cap` subsequent bytes.
+    /// Creates a `SysExDetector` that will scan a sequence of input bytes and
+    /// yield messages that begin with the the given `id` byte sequence and that
+    /// contain at most `cap` subsequent bytes.
     ///
     /// When the created detector encounters messages and other events, it will
     /// yield them by invoking methods on the given `handler`.
@@ -107,23 +108,32 @@ impl<H: SysExHandler> SysExDetector<H> {
         }
     }
 
-    fn consume(&mut self, mut bytes: &[u8]) -> bool {
+    /// Consumes a chunk of input bytes.
+    ///
+    /// Returns `true` if the entire chunk is consumed or `false` if the handler
+    /// requested an early exit.
+    pub fn consume(&mut self, mut bytes: &[u8]) -> bool {
+        // Loop until entire chunk is consumed
         while bytes.len() > 0 {
-
+            // Invoke path for state
             let (ok, len) = match self.state {
-                Initial   => (true, 0), //self.skip_to_sysex(bytes),
-                SysExId   => (true, 0),
-                SysExData => (true, 0),
+                Initial   => self.skip_non_sysex(bytes),
+                SysExId   => self.verify_id(bytes),
+                SysExData => self.accumulate_data(bytes),
             };
 
+            // Check for early exit
             if !ok { return false; }
 
+            // Advance buffer to next unconsumed byte
             bytes = &bytes[len..];
         }
 
-        return true;
+        // Fully consumed
+        true
     }
 
+    // Initial state: skip bytes until the SysEx begin byte (F0) is found.
     fn skip_non_sysex(&mut self, bytes: &[u8]) -> (bool, usize) {
         let mut cnt = 0;
         let mut pos = self.pos;
@@ -147,65 +157,24 @@ impl<H: SysExHandler> SysExDetector<H> {
         (true, cnt)
     }
 
-    fn begin_sysex(&mut self) {
-        self.start = self.pos;
+    fn verify_id(&mut self, bytes: &[u8]) -> (bool, usize) {
+        panic!()
     }
 
-    //fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> usize {
+    fn accumulate_data(&mut self, bytes: &[u8]) -> (bool, usize) { 
+        panic!()
+    }
+
+    //fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> (bool, usize) {
     //    // In a SysEx message, but skipping due to mismatched id or because the
     //    // message is too long.  Possible outcomes:
     //    // * skip through SysEx end byte [F7];
     //    // * find invalid byte [80-EF|F1-F6]; or,
     //    // * run out of bytes to check.
-
-    //    for &b in bytes {
-    //        if b == SYSEX_END {
-    //            self.on_skipped(0, reason);
-    //        }
-
-    //        match b {
-    //            SYSEX_END {
-    //            }
-    //        }
-    //    }
-    //}
-
-    //fn in_sysex(&mut self, bytes: &[u8]) -> usize {
-    //    assert!(bytes.len() > 0);
-    //    assert!(bytes[0] == SYSEX_BEGIN);
-
-    //    self.buf[0] = SYSEX_BEGIN;
-    //    self.len    = 1;
-
-    //    let mut i = 1;
-
-    //    for &b in &bytes[i..] {
-    //        if b != self[id]
-    //    }
     //}
 
     fn finish(&mut self) {
     }
-
-    //fn emit(&self, event: SysExEvent) -> bool {
-    //    (self.handle)(event, self.pos)
-    //}
-
-    //fn emit_message(&mut self) -> bool {
-    //    let result = self.emit(SysExEvent::Message(&self.message[..]));
-    //    self.message.clear();
-    //    result
-    //}
-
-    //fn on_skipped(&mut self, count: usize, reason: SkipReason) -> bool {
-    //    let total = self.len + count;
-    //    total == 0 || {
-    //        let result = self.emit(SysExEvent::Skipped(count, reason));
-    //        self.pos += total;
-    //        self.len = 0;
-    //        result
-    //    }
-    //}
 }
 
 /// Checks if `byte` is a MIDI System Real-Time message.
