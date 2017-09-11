@@ -175,13 +175,14 @@ impl<H: SysExHandler> SysExDetector<H> {
         panic!()
     }
 
-    //fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> (bool, usize) {
-    //    // In a SysEx message, but skipping due to mismatched id or because the
-    //    // message is too long.  Possible outcomes:
-    //    // * skip through SysEx end byte [F7];
-    //    // * find invalid byte [80-EF|F1-F6]; or,
-    //    // * run out of bytes to check.
-    //}
+    fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> (bool, usize) {
+        // In a SysEx message, but skipping due to mismatched id or because the
+        // message is too long.  Possible outcomes:
+        // * skip through SysEx end byte [F7];
+        // * find invalid byte [80-EF|F1-F6]; or,
+        // * run out of bytes to check.
+        panic!()
+    }
 
     fn finish(&mut self) {
     }
