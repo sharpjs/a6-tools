@@ -36,14 +36,21 @@ const SYSEX_END:   u8 = 0xF0;
 /// This type implements a push model rather than an Iterator-based pull model.
 /// Here, the push model simplifies lifetimes, dependencies, and code paths.
 pub struct SysExDetector<H: SysExHandler> {
+    // General
     state:  State,      // State after prior function
-    start:  usize,      // Start position of event in progress
-    pos:    usize,      // Position within stream (>= start)
+
+    // Stream
+    start:      usize,      // Position in stream of event in progress
+    pos:        usize,      // Position in stream of next unconsumed byte
+
+    // Message
     len:    usize,      // Current message length
     cap:    usize,      // Maximum message length
-    buf:    Box<[u8]>,  // Buffer for accumulated message bytes
-    id:     Box<[u8]>,  // Required message prefix
-    dst:    H,          // Destination: handler for messages and events
+    pre:        usize,      // Length of message prefix (SYSEX_BEGIN + id)
+    buf:        Box<[u8]>,  // Message buffer
+
+    // Destination
+    handler:    H,          // Handler for messages and events
 }
 
 /// Trait for types that handle incoming MIDI System Exclusive messages and
@@ -96,16 +103,19 @@ impl<H: SysExHandler> SysExDetector<H> {
     /// When the created detector encounters messages and other events, it will
     /// yield them by invoking methods on the given `handler`.
     pub fn new(id: &[u8], cap: usize, handler: H) -> Self {
-        Self {
-            state: Initial,
-            start: 0,
-            pos:   0,
-            len:   0,
-            cap:   cap,
-            buf:   vec![0; cap].into_boxed_slice(),
-            id:    id.to_owned().into_boxed_slice(),
-            dst:   handler,
-        }
+        use std::cmp::max;
+
+        // Ensure capacity for SYSEX_BEGIN, id bytes, and SYSEX_END
+        let pre = 1 + id.len();
+        let cap = max(cap, pre + 1);
+
+        // Prepare buffer, pre-populating known content
+        let mut buf = vec![0; cap].into_boxed_slice();
+        buf[0] = SYSEX_BEGIN;
+        buf[1..pre].copy_from_slice(id);
+
+        // Construct
+        Self { state: Initial, start: 0, pos: 0, len: 0, cap, pre, buf, handler }
     }
 
     /// Consumes a chunk of input bytes.
@@ -142,7 +152,7 @@ impl<H: SysExHandler> SysExDetector<H> {
             if byte == SYSEX_BEGIN {
                 let start  = self.start;
                 let count  = pos - start;
-                let ok     = count == 0 || self.dst.on_skip(start, count, NotSysEx);
+                let ok     = count == 0 || self.handler.on_skip(start, count, NotSysEx);
                 self.state = SysExId;
                 self.start = pos;
                 self.pos   = pos + 1; // skip over F0
