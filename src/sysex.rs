@@ -37,15 +37,15 @@ const SYSEX_END:   u8 = 0xF0;
 /// Here, the push model simplifies lifetimes, dependencies, and code paths.
 pub struct SysExDetector<H: SysExHandler> {
     // General
-    state:  State,      // State after prior function
+    state:      State,      // State after prior function
 
     // Stream
     start:      usize,      // Position in stream of event in progress
     pos:        usize,      // Position in stream of next unconsumed byte
 
     // Message
-    len:    usize,      // Current message length
-    cap:    usize,      // Maximum message length
+    len:        usize,      // Current message length
+    cap:        usize,      // Maximum message length
     pre:        usize,      // Length of message prefix (SYSEX_BEGIN + id)
     buf:        Box<[u8]>,  // Message buffer
 
@@ -155,8 +155,8 @@ impl<H: SysExHandler> SysExDetector<H> {
                 let ok     = count == 0 || self.handler.on_skip(start, count, NotSysEx);
                 self.state = SysExId;
                 self.start = pos;
-                self.pos   = pos + 1; // skip over F0
-                self.len   = 0;
+                self.pos   = pos + 1;   // Begin byte is pre-populated in buf;
+                self.len   = 1;         //   consider it consumed.
                 return (ok, cnt);
             }
             cnt += 1;
