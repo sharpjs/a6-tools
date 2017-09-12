@@ -45,7 +45,7 @@ pub struct SysExDetector<H: SysExHandler> {
 
     // Message
     len:        usize,      // Current message length
-    cap:        usize,      // Maximum message length
+  //cap:        usize,      // Maximum message length
   //pre:        usize,      // Length of message prefix (SYSEX_BEGIN + id)
     buf:        Box<[u8]>,  // Message buffer
 
@@ -115,7 +115,7 @@ impl<H: SysExHandler> SysExDetector<H> {
         //buf[1..pre].copy_from_slice(id);
 
         // Construct
-        Self { state: Initial, start: 0, pos: 0, len: 0, cap, /*pre,*/ buf, handler }
+        Self { state: Initial, start: 0, pos: 0, len: 0, /*cap, pre,*/ buf, handler }
     }
 
     /// Consumes a chunk of input bytes.
