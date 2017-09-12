@@ -71,6 +71,7 @@ enum State {
     Initial,    // Looking for start of SysEx message
     SysExId,    // Verifying ID of SysEx message
     SysExData,  // Accumulating data of SysEx message
+    SkippingMessage,
 }
 
 /// Conditions that cause a `SysExReader` to skip input bytes.
@@ -127,9 +128,10 @@ impl<H: SysExHandler> SysExDetector<H> {
         while bytes.len() > 0 {
             // Invoke path for state
             let (ok, len) = match self.state {
-                Initial   => self.skip_non_sysex(bytes),
-                SysExId   => self.verify_id(bytes),
-                SysExData => self.accumulate_data(bytes),
+                Initial         => self.skip_non_sysex(bytes),
+                SysExId         => self.verify_id(bytes),
+                SysExData       => self.accumulate_data(bytes),
+                SkippingMessage => panic!(), // self.skip_sysex(bytes),
             };
 
             // Check for early exit
@@ -168,11 +170,78 @@ impl<H: SysExHandler> SysExDetector<H> {
     }
 
     fn verify_id(&mut self, bytes: &[u8]) -> (bool, usize) {
-        panic!()
+        use std::cmp::min;
+        assert!(self.len <= self.pre);
+
+        let mut len = self.len;
+        let     pre = self.pre;
+
+        let cnt = bytes.iter()
+            .zip(&self.buf[len..pre])
+            .take_while(|&(&b, &x)| b == x)
+            .count();
+        len += cnt;
+
+        if len == pre {
+            // matched entire prefix
+            self.state = SysExData;
+        }
+
+        self.pos += cnt;
+        self.len  = len;
+        (true, cnt)
     }
 
     fn accumulate_data(&mut self, bytes: &[u8]) -> (bool, usize) { 
-        panic!()
+        let mut cnt = 0;
+        let mut len = self.len;
+        let mut buf = &mut self.buf[..];
+
+        for &byte in bytes {
+            match byte {
+                0x00...0x7F => {
+                    // Data byte
+                    buf[len] = byte;
+                    len += 1;
+                },
+                0xF0 => {
+                    // SysEx begin byte
+                    let ok = self.handler.on_skip(self.start, cnt, UnexpectedByte);
+                    self.state = SysExId;
+                    self.pos  += cnt;
+                    self.len   = 1;
+                    return (ok, cnt);
+                },
+                0xF7 => {
+                    // SysEx end byte
+                    buf[len] = byte;
+                    cnt += 1;
+                    len += 1;
+                    let ok = self.handler.on_message(self.start, &buf[..len]);
+                    self.state = Initial;
+                    self.start = self.pos + len;
+                    self.pos   = self.start;
+                    self.len   = 0;
+                    return (ok, cnt);
+                },
+                0xF8...0xFF => {
+                    // SysRT message: ignore
+                },
+                _ /* 0x80...0xEF, 0xF1...0xF6 */ => {
+                    // Other status byte
+                    let ok = self.handler.on_skip(self.start, cnt, UnexpectedByte);
+                    self.state = Initial;
+                    self.pos  += cnt;
+                    self.len   = 0;
+                    return (ok, cnt);
+                },
+            }
+            cnt += 1;
+        }
+
+        self.pos += cnt;
+        self.len  = len;
+        (true, cnt)
     }
 
     fn skip_sysex(&mut self, bytes: &[u8], reason: SkipReason) -> (bool, usize) {
