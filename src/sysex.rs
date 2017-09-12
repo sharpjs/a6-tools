@@ -46,7 +46,7 @@ pub struct SysExDetector<H: SysExHandler> {
     // Message
     len:        usize,      // Current message length
     cap:        usize,      // Maximum message length
-    pre:        usize,      // Length of message prefix (SYSEX_BEGIN + id)
+  //pre:        usize,      // Length of message prefix (SYSEX_BEGIN + id)
     buf:        Box<[u8]>,  // Message buffer
 
     // Destination
@@ -69,7 +69,7 @@ pub trait SysExHandler {
 // Internal state of `SysExDetector`.
 enum State {
     Initial,    // Looking for start of SysEx message
-    SysExId,    // Verifying ID of SysEx message
+  //SysExId,    // Verifying ID of SysEx message
     SysExData,  // Accumulating data of SysEx message
     SkippingMessage,
 }
@@ -98,25 +98,24 @@ pub enum SkipReason {
 
 impl<H: SysExHandler> SysExDetector<H> {
     /// Creates a `SysExDetector` that will scan a sequence of input bytes and
-    /// yield messages that begin with the the given `id` byte sequence and that
-    /// contain at most `cap` subsequent bytes.
+    /// yield messages that contain at most `cap` subsequent bytes.
     ///
     /// When the created detector encounters messages and other events, it will
     /// yield them by invoking methods on the given `handler`.
-    pub fn new(id: &[u8], cap: usize, handler: H) -> Self {
+    pub fn new(cap: usize, handler: H) -> Self {
         use std::cmp::max;
 
         // Ensure capacity for SYSEX_BEGIN, id bytes, and SYSEX_END
-        let pre = 1 + id.len();
-        let cap = max(cap, pre + 1);
+        //let pre = 1 + id.len();
+        //let cap = max(cap, pre + 1);
 
         // Prepare buffer, pre-populating known content
         let mut buf = vec![0; cap].into_boxed_slice();
-        buf[0] = SYSEX_BEGIN;
-        buf[1..pre].copy_from_slice(id);
+        //buf[0] = SYSEX_BEGIN;
+        //buf[1..pre].copy_from_slice(id);
 
         // Construct
-        Self { state: Initial, start: 0, pos: 0, len: 0, cap, pre, buf, handler }
+        Self { state: Initial, start: 0, pos: 0, len: 0, cap, /*pre,*/ buf, handler }
     }
 
     /// Consumes a chunk of input bytes.
@@ -129,7 +128,7 @@ impl<H: SysExHandler> SysExDetector<H> {
             // Invoke path for state
             let (ok, len) = match self.state {
                 Initial         => self.skip_non_sysex(bytes),
-                SysExId         => self.verify_id(bytes),
+              //SysExId         => self.verify_id(bytes),
                 SysExData       => self.accumulate_data(bytes),
                 SkippingMessage => panic!(), // self.skip_sysex(bytes),
             };
@@ -155,7 +154,7 @@ impl<H: SysExHandler> SysExDetector<H> {
                 let start  = self.start;
                 let count  = pos - start;
                 let ok     = count == 0 || self.handler.on_skip(start, count, NotSysEx);
-                self.state = SysExId;
+                self.state = SysExData;
                 self.start = pos;
                 self.pos   = pos + 1;   // Begin byte is pre-populated in buf;
                 self.len   = 1;         //   consider it consumed.
@@ -169,28 +168,28 @@ impl<H: SysExHandler> SysExDetector<H> {
         (true, cnt)
     }
 
-    fn verify_id(&mut self, bytes: &[u8]) -> (bool, usize) {
-        use std::cmp::min;
-        assert!(self.len <= self.pre);
+    //fn verify_id(&mut self, bytes: &[u8]) -> (bool, usize) {
+    //    use std::cmp::min;
+    //    assert!(self.len <= self.pre);
 
-        let mut len = self.len;
-        let     pre = self.pre;
+    //    let mut len = self.len;
+    //    let     pre = self.pre;
 
-        let cnt = bytes.iter()
-            .zip(&self.buf[len..pre])
-            .take_while(|&(&b, &x)| b == x)
-            .count();
-        len += cnt;
+    //    let cnt = bytes.iter()
+    //        .zip(&self.buf[len..pre])
+    //        .take_while(|&(&b, &x)| b == x)
+    //        .count();
+    //    len += cnt;
 
-        if len == pre {
-            // matched entire prefix
-            self.state = SysExData;
-        }
+    //    if len == pre {
+    //        // matched entire prefix
+    //        self.state = SysExData;
+    //    }
 
-        self.pos += cnt;
-        self.len  = len;
-        (true, cnt)
-    }
+    //    self.pos += cnt;
+    //    self.len  = len;
+    //    (true, cnt)
+    //}
 
     fn accumulate_data(&mut self, bytes: &[u8]) -> (bool, usize) { 
         let mut cnt = 0;
@@ -207,7 +206,7 @@ impl<H: SysExHandler> SysExDetector<H> {
                 0xF0 => {
                     // SysEx begin byte
                     let ok = self.handler.on_skip(self.start, cnt, UnexpectedByte);
-                    self.state = SysExId;
+                    self.state = SysExData;
                     self.pos  += cnt;
                     self.len   = 1;
                     return (ok, cnt);
