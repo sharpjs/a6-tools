@@ -15,7 +15,7 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 // Squelch noise while experimenting
-#![allow(dead_code)]
+#![allow(warnings)]
 
 pub mod io;
 pub mod sysex;
