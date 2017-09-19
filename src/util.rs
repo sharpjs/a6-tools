@@ -14,3 +14,59 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+/// Extension methods for pointer arithmetic and alignment.
+///
+/// Some of these methods are being implemented in the standard library, but
+/// they are not yet available in Rust.
+///
+pub trait PointerExt: Copy {
+    /// Applies a positive offset of `count * size_of::<T>()` to the pointer.
+    ///
+    /// A standard library implementation is in progress:
+    /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
+    unsafe fn add(self, count: usize) -> Self;
+
+    /// Applies a negative offset of `count * size_of::<T>()` to the pointer.
+    ///
+    /// A standard library implementation is in progress:
+    /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
+    unsafe fn sub(self, count: usize) -> Self;
+}
+
+impl<T> PointerExt for *const T {
+     #[inline(always)]
+     unsafe fn add(self, count: usize) -> Self {
+         self.offset(count as isize)
+     }
+
+     #[inline(always)]
+     unsafe fn sub(self, count: usize) -> Self {
+         self.offset((count as isize).wrapping_neg())
+     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add() {
+        let items = &[11, 22, 33];
+        let ptr   = &items[1] as *const _;
+
+        let item = unsafe { *(ptr.add(1)) };
+
+        assert_eq!(item, 33);
+    }
+
+    #[test]
+    fn sub() {
+        let items = &[11, 22, 33];
+        let ptr   = &items[1] as *const _;
+
+        let item = unsafe { *(ptr.sub(1)) };
+
+        assert_eq!(item, 11);
+    }
+}
+
