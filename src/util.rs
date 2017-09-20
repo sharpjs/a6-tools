@@ -56,6 +56,18 @@ pub trait PointerExt: Copy {
     /// `usize`-aligned address to the pointer.  Returns 0 if the pointer is
     /// aligned already.
     fn offset_from_aligned(self) -> usize;
+    
+    /// Adds to the pointer the minimum offset sufficient to align the pointer
+    /// to a `usize` boundary.
+    unsafe fn align_up(self) -> Self {
+        self.add(self.offset_to_aligned())
+    }
+
+    /// Subtracts from the pointer the minimum offset sufficient to align the
+    /// pointer to a `usize` boundary.
+    unsafe fn align_down(self) -> Self {
+        self.sub(self.offset_from_aligned())
+    }
 }
 
 impl<T> PointerExt for *const T {
@@ -126,10 +138,10 @@ mod tests {
 
     #[test]
     fn offset_to_aligned() {
-        let mut ptr   = ITEMS.as_ptr() as *const u8;
-        let     align = size_of::<usize>();
+        let align = size_of::<usize>();
 
         for i in 0..(2 * align + 1) {
+            let ptr      = i as *const u8;
             let actual   = ptr.offset_to_aligned();
             let expected = match i % align {
                 0 => 0,
@@ -137,24 +149,36 @@ mod tests {
             };
 
             assert_eq!(actual, expected, "at offset {}", i);
-
-            ptr = unsafe { ptr.add(1) };
         }
     }
 
     #[test]
     fn offset_from_aligned() {
-        let mut ptr   = ITEMS.as_ptr() as *const u8;
-        let     align = size_of::<usize>();
+        let align = size_of::<usize>();
 
         for i in 0..(2 * align + 1) {
+            let ptr      = i as *const u8;
             let actual   = ptr.offset_from_aligned();
             let expected = i % align;
 
             assert_eq!(actual, expected, "at offset {}", i);
-
-            ptr = unsafe { ptr.add(1) };
         }
+    }
+
+    #[test]
+    fn align_up() {
+        let unaligned = 1 as *const u8;
+        let   aligned = unsafe { unaligned.align_up() };
+
+        assert!(unaligned < aligned);
+    }
+
+    #[test]
+    fn align_down() {
+        let unaligned = 1 as *const u8;
+        let   aligned = unsafe { unaligned.align_down() };
+
+        assert!(aligned < unaligned);
     }
 }
 
