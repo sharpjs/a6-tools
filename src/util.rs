@@ -16,8 +16,8 @@
 
 /// Extension methods for pointer arithmetic and alignment.
 ///
-/// Some of these methods are being implemented in the standard library, but
-/// they are not yet available in Rust.
+/// Some of these methods are being implemented in the Rust standard library,
+/// but they are not yet available in stable Rust.
 ///
 pub trait PointerExt: Copy {
     /// Adds an offset of `count * size_of::<T>()` to the pointer.
