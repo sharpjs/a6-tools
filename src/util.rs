@@ -31,6 +31,10 @@ pub trait PointerExt: Copy {
     /// A standard library implementation is in progress:
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
     unsafe fn sub(self, count: usize) -> Self;
+
+    /// Calculates the offset in bytes from the pointer to the given `other`
+    /// pointer.
+    fn byte_len_to<U>(self, other: *const U) -> usize;
 }
 
 impl<T> PointerExt for *const T {
@@ -42,6 +46,11 @@ impl<T> PointerExt for *const T {
      #[inline(always)]
      unsafe fn sub(self, count: usize) -> Self {
          self.offset((count as isize).wrapping_neg())
+     }
+
+     #[inline(always)]
+     fn byte_len_to<U>(self, other: *const U) -> usize {
+         (other as usize).wrapping_sub(self as usize)
      }
 }
 
@@ -67,6 +76,20 @@ mod tests {
         let item = unsafe { *(ptr.sub(1)) };
 
         assert_eq!(item, 11);
+    }
+
+    #[test]
+    fn byte_len_to() {
+        let ptr1 = ITEMS[1..].as_ptr();
+        let ptr2 = ITEMS[2..].as_ptr();
+
+        let len11 = ptr1.byte_len_to(ptr1);
+        let len12 = ptr1.byte_len_to(ptr2);
+        let len21 = ptr2.byte_len_to(ptr1);
+
+        assert_eq!(len11, 0usize);
+        assert_eq!(len12, 4usize);
+        assert_eq!(len21, 4usize.wrapping_neg());
     }
 }
 
