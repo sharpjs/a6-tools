@@ -14,6 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+// The alignment in bytes for `usize` values.
+#[cfg(target_pointer_width = "32")]
+const USIZE_BYTES: usize = 4;
+#[cfg(target_pointer_width = "64")]
+const USIZE_BYTES: usize = 8;
+
+// A mask of the bits that must be zero in a `usize`-aligned address.
+const UNALIGNED_MASK: usize = USIZE_BYTES - 1;
+
 /// Extension methods for pointer arithmetic and alignment.
 ///
 /// Some of these methods are being implemented in the Rust standard library,
@@ -32,9 +41,21 @@ pub trait PointerExt: Copy {
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
     unsafe fn sub(self, count: usize) -> Self;
 
-    /// Calculates the offset in bytes from the pointer to the given `other`
-    /// pointer.
+    /// Calculates the forward offset in bytes from the pointer to the given
+    /// `other` pointer.
     fn byte_len_to<U>(self, other: *const U) -> usize;
+
+    // Calculates the forward offset in bytes from the pointer to the nearest
+    // `usize`-aligned address.  Returns 0 if the pointer is aligned already.
+    //
+    // A standard library implementation is in progress:
+    // https://github.com/rust-lang/rfcs/blob/master/text/2043-is-aligned-intrinsic.md
+    fn offset_to_aligned(self) -> usize;
+
+    // Calculates the forward offset in bytes from the nearest preceding
+    // `usize`-aligned address to the pointer.  Returns 0 if the pointer is
+    // aligned already.
+    fn offset_from_aligned(self) -> usize;
 }
 
 impl<T> PointerExt for *const T {
@@ -48,14 +69,25 @@ impl<T> PointerExt for *const T {
          self.offset((count as isize).wrapping_neg())
      }
 
-     #[inline(always)]
+     #[inline]
      fn byte_len_to<U>(self, other: *const U) -> usize {
          (other as usize).wrapping_sub(self as usize)
+     }
+
+     #[inline]
+     fn offset_to_aligned(self) -> usize {
+         !(self as usize + UNALIGNED_MASK) & UNALIGNED_MASK
+     }
+
+     #[inline]
+     fn offset_from_aligned(self) -> usize {
+         self as usize & UNALIGNED_MASK
      }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::mem::size_of;
     use super::*;
 
     static ITEMS: [i32; 3] = [11, 22, 33];
@@ -90,6 +122,39 @@ mod tests {
         assert_eq!(len11, 0usize);
         assert_eq!(len12, 4usize);
         assert_eq!(len21, 4usize.wrapping_neg());
+    }
+
+    #[test]
+    fn offset_to_aligned() {
+        let mut ptr   = ITEMS.as_ptr() as *const u8;
+        let     align = size_of::<usize>();
+
+        for i in 0..(2 * align + 1) {
+            let actual   = ptr.offset_to_aligned();
+            let expected = match i % align {
+                0 => 0,
+                i => align - i,
+            };
+
+            assert_eq!(actual, expected, "at offset {}", i);
+
+            ptr = unsafe { ptr.add(1) };
+        }
+    }
+
+    #[test]
+    fn offset_from_aligned() {
+        let mut ptr   = ITEMS.as_ptr() as *const u8;
+        let     align = size_of::<usize>();
+
+        for i in 0..(2 * align + 1) {
+            let actual   = ptr.offset_from_aligned();
+            let expected = i % align;
+
+            assert_eq!(actual, expected, "at offset {}", i);
+
+            ptr = unsafe { ptr.add(1) };
+        }
     }
 }
 
