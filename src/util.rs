@@ -49,10 +49,11 @@ impl<T> PointerExt for *const T {
 mod tests {
     use super::*;
 
+    static ITEMS: [i32; 3] = [11, 22, 33];
+
     #[test]
     fn add() {
-        let items = &[11, 22, 33];
-        let ptr   = &items[1] as *const _;
+        let ptr = ITEMS[1..].as_ptr();
 
         let item = unsafe { *(ptr.add(1)) };
 
@@ -61,8 +62,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        let items = &[11, 22, 33];
-        let ptr   = &items[1] as *const _;
+        let ptr = ITEMS[1..].as_ptr();
 
         let item = unsafe { *(ptr.sub(1)) };
 
