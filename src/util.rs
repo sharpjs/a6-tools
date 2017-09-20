@@ -35,7 +35,7 @@ pub trait PointerExt: Copy {
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
     unsafe fn add(self, count: usize) -> Self;
 
-    /// Subtracts an offset of `count * size_of::<T>()` to the pointer.
+    /// Subtracts an offset of `count * size_of::<T>()` from the pointer.
     ///
     /// A standard library implementation is in progress:
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
