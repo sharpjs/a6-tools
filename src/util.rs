@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::cmp::min;
+
 // The alignment in bytes for `usize` values.
 #[cfg(target_pointer_width = "32")]
 const USIZE_BYTES: usize = 4;
@@ -95,6 +97,87 @@ impl<T> PointerExt for *const T {
      fn offset_from_aligned(self) -> usize {
          self as usize & UNALIGNED_MASK
      }
+}
+
+/// A trait that enables searching a collection for items having specific bits
+/// set or unset.
+pub trait FindBits {
+    type Index: Copy;
+    type Item:  Copy;
+
+    fn find_bits(&self, bits: Self::Item, mask: Self::Item)
+        -> Option<(Self::Index, Self::Item)>;
+}
+
+impl FindBits for [u8]  {
+    type Index = usize;
+    type Item  = u8;
+
+    fn find_bits(&self, bits: u8, mask: u8) -> Option<(usize, u8)> {
+        unsafe {
+            let mut ptr = self.as_ptr();
+            let     beg = ptr;
+            let     end = ptr.add(self.len());
+
+            // Check up to alignment boundary
+            let boundary = min(ptr.align_up(), end);
+            while ptr < boundary {
+                let value = *ptr;
+                if value & mask == bits {
+                    return Some((beg.byte_len_to(ptr), value));
+                }
+                ptr = ptr.add(1);
+            }
+
+            // Check aligned chunks
+            let bits_wide = fill_usize(bits);
+            let mask_wide = fill_usize(mask);
+            let boundary  = end.align_down();
+            while ptr < boundary {
+                let value = *(ptr as *const usize) & mask_wide ^ bits_wide;
+                if has_zero_byte(value) { break }
+                ptr = ptr.add(USIZE_BYTES);
+            }
+
+            // Check remaining bytes
+            while ptr < end {
+                let value = *ptr;
+                if value & mask == bits {
+                    return Some((beg.byte_len_to(ptr), value));
+                }
+                ptr = ptr.add(1);
+            }
+
+            return None
+        }
+    }
+}
+
+#[cfg(target_pointer_width = "32")]
+#[inline]
+fn fill_usize(b: u8) -> usize {
+    let mut x = b as usize; // 0x_0000_00nn
+    x |= x <<  8;           // 0x_0000_nnnn
+    x |= x << 16;           // 0x_nnnn_nnnn
+    x
+}
+
+#[cfg(target_pointer_width = "64")]
+#[inline]
+fn fill_usize(b: u8) -> usize {
+    let mut x = b as usize; // 0x_0000_0000_0000_00nn
+    x |= x <<  8;           // 0x_0000_0000_0000_nnnn
+    x |= x << 16;           // 0x_0000_0000_nnnn_nnnn
+    x |= x << 32;           // 0x_nnnn_nnnn_nnnn_nnnn
+    x
+}
+
+#[inline]
+fn has_zero_byte(x: usize) -> bool {
+    // Method from 1987-04-27 USENET post by Alan Mycroft
+    const ALL_0x01: usize = 0x0101010101010101u64 as usize;
+    const ALL_0x80: usize = 0x8080808080808080u64 as usize;
+    x.wrapping_sub(ALL_0x01) & !x & ALL_0x80 != 0
 }
 
 #[cfg(test)]
