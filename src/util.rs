@@ -45,16 +45,16 @@ pub trait PointerExt: Copy {
     /// `other` pointer.
     fn byte_len_to<U>(self, other: *const U) -> usize;
 
-    // Calculates the forward offset in bytes from the pointer to the nearest
-    // `usize`-aligned address.  Returns 0 if the pointer is aligned already.
-    //
-    // A standard library implementation is in progress:
-    // https://github.com/rust-lang/rfcs/blob/master/text/2043-is-aligned-intrinsic.md
+    /// Calculates the forward offset in bytes from the pointer to the nearest
+    /// `usize`-aligned address.  Returns 0 if the pointer is aligned already.
+    ///
+    /// A standard library implementation is in progress:
+    /// https://github.com/rust-lang/rfcs/blob/master/text/2043-is-aligned-intrinsic.md
     fn offset_to_aligned(self) -> usize;
 
-    // Calculates the forward offset in bytes from the nearest preceding
-    // `usize`-aligned address to the pointer.  Returns 0 if the pointer is
-    // aligned already.
+    /// Calculates the forward offset in bytes from the nearest preceding
+    /// `usize`-aligned address to the pointer.  Returns 0 if the pointer is
+    /// aligned already.
     fn offset_from_aligned(self) -> usize;
 }
 
