@@ -20,13 +20,13 @@
 /// they are not yet available in Rust.
 ///
 pub trait PointerExt: Copy {
-    /// Applies a positive offset of `count * size_of::<T>()` to the pointer.
+    /// Adds an offset of `count * size_of::<T>()` to the pointer.
     ///
     /// A standard library implementation is in progress:
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
     unsafe fn add(self, count: usize) -> Self;
 
-    /// Applies a negative offset of `count * size_of::<T>()` to the pointer.
+    /// Subtracts an offset of `count * size_of::<T>()` to the pointer.
     ///
     /// A standard library implementation is in progress:
     /// https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md
