@@ -120,6 +120,9 @@ impl FindBits for [u8]  {
             let     beg = ptr;
             let     end = ptr.add(self.len());
 
+            // Zero the bits caller doesn't care about
+            let bits = bits & mask;
+
             // Check byte-wise up to usize-aligned location
             let aligned = min(ptr.align_up(), end);
             while ptr < aligned {
