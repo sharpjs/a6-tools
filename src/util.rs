@@ -115,13 +115,14 @@ impl FindBits for [u8]  {
 
     fn find_bits(&self, bits: u8, mask: u8) -> Option<(usize, u8)> {
         unsafe {
+            // Compute bounds
             let mut ptr = self.as_ptr();
             let     beg = ptr;
             let     end = ptr.add(self.len());
 
-            // Check up to alignment boundary
-            let boundary = min(ptr.align_up(), end);
-            while ptr < boundary {
+            // Check byte-wise up to usize-aligned location
+            let aligned = min(ptr.align_up(), end);
+            while ptr < aligned {
                 let value = *ptr;
                 if value & mask == bits {
                     return Some((beg.byte_len_to(ptr), value));
@@ -129,11 +130,11 @@ impl FindBits for [u8]  {
                 ptr = ptr.add(1);
             }
 
-            // Check aligned chunks
+            // Check usize-wise up to last usize-aligned location
             let bits_wide = fill_usize(bits);
             let mask_wide = fill_usize(mask);
-            let boundary  = end.align_down();
-            while ptr < boundary {
+            let aligned   = end.align_down();
+            while ptr < aligned {
                 let value = *(ptr as *const usize) & mask_wide ^ bits_wide;
                 if has_zero_byte(value) { break }
                 ptr = ptr.add(USIZE_BYTES);
@@ -147,9 +148,9 @@ impl FindBits for [u8]  {
                 }
                 ptr = ptr.add(1);
             }
-
-            return None
         }
+
+        return None
     }
 }
 
