@@ -187,6 +187,11 @@ mod tests {
 
     static ITEMS: [i32; 3] = [11, 22, 33];
 
+    static BYTES: [u8; 16] = [
+        0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
+        0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
+    ];
+
     #[test]
     fn add() {
         let ptr = ITEMS[1..].as_ptr();
@@ -262,6 +267,39 @@ mod tests {
         let   aligned = unsafe { unaligned.align_down() };
 
         assert!(aligned < unaligned);
+    }
+
+    #[test]
+    fn find_bits_found() {
+        const MASK: u8 = 0b_0000_1111;
+        let align = size_of::<usize>();
+
+        // Test every initial (mis)alignment
+        for offset in 0..align {
+            let bytes = &BYTES[offset..];
+
+            // Test every found position
+            for (i, &byte) in bytes.iter().enumerate() {
+                let found = bytes.find_bits(byte, MASK);
+                assert_eq!(found, Some((i, byte)));
+            }
+        }
+    }
+
+    #[test]
+    fn find_bits_not_found() {
+        const BYTE: u8 = 0b_0101_0011;
+        const MASK: u8 = 0b_0111_0000;
+        let align = size_of::<usize>();
+
+        // Test every initial (mis)alignment
+        for offset in 0..align {
+            let bytes = &BYTES[offset..];
+
+            let result = bytes.find_bits(BYTE, MASK);
+
+            assert_eq!(result, None);
+        }
     }
 }
 
