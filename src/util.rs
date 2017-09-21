@@ -185,7 +185,7 @@ mod tests {
     use std::mem::size_of;
     use super::*;
 
-    static ITEMS: [i32; 3] = [11, 22, 33];
+    static INTS: [i32; 3] = [11, 22, 33];
 
     static BYTES: [u8; 16] = [
         0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7,
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn add() {
-        let ptr = ITEMS[1..].as_ptr();
+        let ptr = INTS[1..].as_ptr();
 
         let item = unsafe { *(ptr.add(1)) };
 
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        let ptr = ITEMS[1..].as_ptr();
+        let ptr = INTS[1..].as_ptr();
 
         let item = unsafe { *(ptr.sub(1)) };
 
@@ -212,8 +212,8 @@ mod tests {
 
     #[test]
     fn byte_len_to() {
-        let ptr1 = ITEMS[1..].as_ptr();
-        let ptr2 = ITEMS[2..].as_ptr();
+        let ptr1 = INTS[1..].as_ptr();
+        let ptr2 = INTS[2..].as_ptr();
 
         let len11 = ptr1.byte_len_to(ptr1);
         let len12 = ptr1.byte_len_to(ptr2);
