@@ -30,6 +30,33 @@ impl ErrorExt for Error {
     }
 }
 
+pub trait BufReadExt {
+    fn process<F>(&mut self, pos: usize, f: F) -> Result<(bool, usize)>
+    where
+        F: Fn(usize, &[u8]) -> (bool, usize);
+}
+
+impl<R: BufRead> BufReadExt for R {
+    fn process<F>(&mut self, mut pos: usize, f: F) -> Result<(bool, usize)>
+    where
+        F: Fn(usize, &[u8]) -> (bool, usize)
+    {
+        loop {
+            let (ok, count) = match self.fill_buf() {
+                Ok  (ref b) if b.len() == 0     => return Ok((true, pos)),
+                Ok  (    b)                     => f(pos, b),
+                Err (ref e) if e.is_transient() => continue,
+                Err (    e)                     => return Err(e),
+            };
+
+            self.consume(count);
+            pos += count;
+
+            if !ok { return Ok((false, pos)) }
+        }
+    }
+}
+
 /// A named input stream.
 pub struct Input<R> {
     stream: R,
