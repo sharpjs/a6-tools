@@ -17,6 +17,19 @@
 use std::io::{BufRead, Result, Error, ErrorKind};
 use std::io::ErrorKind::{Interrupted, UnexpectedEof};
 
+/// Extension methods for `std::io::Error`.
+pub trait ErrorExt {
+    /// Returns `true` if the error is a transient error, `false` otherwise.
+    fn is_transient(&self) -> bool;
+}
+
+impl ErrorExt for Error {
+    #[inline]
+    fn is_transient(&self) -> bool {
+        self.kind() == Interrupted
+    }
+}
+
 /// A named input stream.
 pub struct Input<R> {
     stream: R,
