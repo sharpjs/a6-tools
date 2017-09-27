@@ -73,7 +73,19 @@ pub trait ReadExt: Read {
 impl<R: Read> ReadExt for R { }
 
 pub trait BufReadExt {
-    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, each: F)
+    /// Consumes bytes until one matches the given bit pattern or EOF is reached.
+    /// To match, a byte must equal `bits` in the bit positions corresponding to
+    /// the 1-bits in `mask`.
+    ///
+    /// Non-matching bytes are passed in nonzero-length slices to the given
+    /// handler `f` for arbitrary processing.
+    ///
+    /// Returns a tuple `(count, found)` indicating how many non-matching bytes
+    /// were consumed and the matching byte, if any.
+    ///
+    /// On return, if a byte matched, the stream is positioned at the following
+    /// byte. Otherwise, the stream is positioned at EOF.
+    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, f: F)
         -> Result<(usize, Option<u8>)>
     where
         F: FnMut(&[u8]);
@@ -86,7 +98,7 @@ pub trait BufReadExt {
     /// were discarded and the matching byte, if any.
     ///
     /// On return, if a byte matched, the stream is positioned at the following
-    /// byte. Otherwise, the stream is positioned at end-of-stream.
+    /// byte. Otherwise, the stream is positioned at EOF.
     fn skip_until_bits(&mut self, bits: u8, mask: u8)
         -> Result<(usize, Option<u8>)>
     {
@@ -106,7 +118,7 @@ pub trait BufReadExt {
     /// exceed `buf.len()`.
     ///
     /// On return, if a byte matched, the stream is positioned at the following
-    /// byte. Otherwise, the stream is positioned at end-of-stream.
+    /// byte. Otherwise, the stream is positioned at EOF.
     fn read_until_bits(&mut self, bits: u8, mask: u8, mut buf: &mut [u8])
         -> Result<(usize, Option<u8>)>
     {
@@ -117,7 +129,8 @@ pub trait BufReadExt {
 }
 
 impl<R: BufRead> BufReadExt for R {
-    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, mut f: F) -> Result<(usize, Option<u8>)>
+    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, mut f: F)
+        -> Result<(usize, Option<u8>)>
     where
         F: FnMut(&[u8])
     {
