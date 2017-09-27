@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::{BufRead, Result, Error, ErrorKind};
+use std::io::{BufRead, Cursor, Error, ErrorKind, Result, Write};
 use std::io::ErrorKind::{Interrupted, UnexpectedEof};
+use util::FindBits;
 
 /// Extension methods for `std::io::Error`.
 pub trait ErrorExt {
@@ -31,28 +32,66 @@ impl ErrorExt for Error {
 }
 
 pub trait BufReadExt {
-    fn process<F>(&mut self, pos: usize, f: F) -> Result<(bool, usize)>
+    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, each: F)
+        -> Result<(usize, Option<u8>)>
     where
-        F: Fn(usize, &[u8]) -> (bool, usize);
+        F: FnMut(&[u8]);
+
+    fn skip_until_bits(&mut self, bits: u8, mask: u8)
+        -> Result<(usize, Option<u8>)>
+    {
+        self.scan_until_bits(bits, mask, |_| {})
+    }
+
+    fn read_until_bits(&mut self, bits: u8, mask: u8, buf: &mut [u8])
+        -> Result<(usize, usize, Option<u8>)>
+    {
+        let mut cursor = Cursor::new(buf);
+
+        let (count, byte) = self.scan_until_bits(bits, mask, |buf| {
+            cursor.write(buf).unwrap();
+        })?;
+
+        Ok((count, cursor.position() as usize, byte))
+    }
 }
 
 impl<R: BufRead> BufReadExt for R {
-    fn process<F>(&mut self, mut pos: usize, f: F) -> Result<(bool, usize)>
+    fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, mut f: F) -> Result<(usize, Option<u8>)>
     where
-        F: Fn(usize, &[u8]) -> (bool, usize)
+        F: FnMut(&[u8])
     {
+        let mut consumed = 0;
+
+        // Until delimiter or EOF is found...
         loop {
-            let (ok, count) = match self.fill_buf() {
-                Ok  (ref b) if b.len() == 0     => return Ok((true, pos)),
-                Ok  (    b)                     => f(pos, b),
-                Err (ref e) if e.is_transient() => continue,
-                Err (    e)                     => return Err(e),
+            let (count, found) = {
+                // Read Get next chunk from the stream
+                let buf = match self.fill_buf() {
+                    Ok(b) if b.len() == 0 /*EOF*/  => return Ok((consumed, None)),
+                    Ok(b)                          => b,
+                    Err(ref e) if e.is_transient() => continue,
+                    Err(e)                         => return Err(e),
+                };
+
+                // Search chunk for delimiter with desired bit pattern
+                // - If any bytes were skipped, invoke f with them
+                // - If delimiter was found, include it in consumed bytes
+                match buf.find_bits(bits, mask) {
+                    Some((0, b)) => {               (    1,     Some(b)) },
+                    Some((i, b)) => { f(&buf[..i]); (i + 1,     Some(b)) },
+                    None         => { f( buf     ); (buf.len(), None   ) },
+                }
             };
 
+            // Mark bytes consumed
             self.consume(count);
-            pos += count;
+            consumed += count;
 
-            if !ok { return Ok((false, pos)) }
+            // Check if found
+            if found.is_some() {
+                return Ok((consumed, found))
+            }
         }
     }
 }
