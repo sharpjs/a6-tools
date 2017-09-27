@@ -233,5 +233,28 @@ mod tests {
 
         assert_eq!(src.skip_until_bits(0x0A, 0xFF).unwrap(), (4, None));
     }
+
+    #[test]
+    fn read_until_bits_found() {
+        let bytes   = [0x12, 0x34, 0x56, 0x78];
+        let mut src = Cursor::new(&bytes);
+        let mut buf = [0; 2];
+
+        assert_eq!(src.read_until_bits(0x56, 0xFF, &mut buf).unwrap(), (3, Some(0x56)));
+        assert_eq!(src.read_u8().unwrap(), 0x78);
+        assert_eq!(buf[0], 0x12);
+        assert_eq!(buf[1], 0x34);
+    }
+
+    #[test]
+    fn read_until_bits_not_found() {
+        let bytes   = [0x12, 0x34, 0x56, 0x78];
+        let mut src = Cursor::new(&bytes);
+        let mut buf = [0; 2];
+
+        assert_eq!(src.read_until_bits(0x0A, 0xFF, &mut buf).unwrap(), (4, None));
+        assert_eq!(buf[0], 0x12);
+        assert_eq!(buf[1], 0x34);
+    }
 }
 
