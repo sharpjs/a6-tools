@@ -31,7 +31,7 @@ impl ErrorExt for Error {
     }
 }
 
-macro_rules! def_read2 {
+macro_rules! def_read {
     {
         $( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*
     } => {
@@ -63,7 +63,7 @@ macro_rules! def_read2 {
 }
 
 pub trait ReadExt: Read {
-    def_read2! {
+    def_read! {
         read_u8  (1, v: u8 ) { v         }
         read_u16 (2, v: u16) { v.to_be() }
         read_u32 (4, v: u32) { v.to_be() }
@@ -232,45 +232,6 @@ impl<R: BufRead> Input<R> {
             ErrorKind::UnexpectedEof,
             format!("At offset {}: unexpected end of file.", self.offset)
         )
-    }
-}
-
-macro_rules! def_read {
-    {
-        $( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*
-    } => {
-        $(
-            /// Reads a `$t`.
-            ///
-            /// # Errors
-            ///
-            /// Error behavior is identical to `std::io::Read::read_exact`:
-            ///
-            /// * `ErrorKind::Interrupted` errors are ignored.
-            ///
-            /// * Other errors indicate failure.  Actual number of bytes read is
-            ///   unspecified, other than <= size of `$t`.
-            ///
-            pub fn $name(&mut self) -> Result<$t> {
-                use std::mem;
-
-                // Read into temporary buffer
-                let mut buf = [0; $n];
-                self.read_exact(&mut buf)?;
-
-                // Interpret as desired type
-                let $v: $t = unsafe { mem::transmute(buf) };
-                Ok($e)
-            }
-        )*
-    }
-}
-
-impl<R: BufRead> Input<R> {
-    def_read! {
-        read_u8  (1, v: u8 ) { v         }
-        read_u16 (2, v: u16) { v.to_be() }
-        read_u32 (4, v: u32) { v.to_be() }
     }
 }
 
