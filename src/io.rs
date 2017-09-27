@@ -93,16 +93,26 @@ pub trait BufReadExt {
         self.scan_until_bits(bits, mask, |_| {})
     }
 
-    fn read_until_bits(&mut self, bits: u8, mask: u8, buf: &mut [u8])
-        -> Result<(usize, usize, Option<u8>)>
+    /// Reads bytes into `buf` until one matches the given bit pattern or EOF
+    /// is reached.  To match, a byte must equal `bits` in the bit positions
+    /// corresponding to the 1-bits in `mask`.
+    ///
+    /// Non-matching bytes are copied to `buf` as its length permits.  If the
+    /// read exceeds the length of `buf`, additional non-matching bytes are
+    /// discarded.  If a byte matches, it is not copied to `buf`.
+    ///
+    /// Returns a tuple `(count, found)` indicating how many non-matching bytes
+    /// were consumed and the matching byte, if any.  Note that `count` can
+    /// exceed `buf.len()`.
+    ///
+    /// On return, if a byte matched, the stream is positioned at the following
+    /// byte. Otherwise, the stream is positioned at end-of-stream.
+    fn read_until_bits(&mut self, bits: u8, mask: u8, mut buf: &mut [u8])
+        -> Result<(usize, Option<u8>)>
     {
-        let mut cursor = Cursor::new(buf);
-
-        let (count, byte) = self.scan_until_bits(bits, mask, |buf| {
-            cursor.write(buf).unwrap();
-        })?;
-
-        Ok((count, cursor.position() as usize, byte))
+        self.scan_until_bits(bits, mask, |bytes| {
+            buf.write(bytes).unwrap();
+        })
     }
 }
 
