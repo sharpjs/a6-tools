@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::{BufRead, Cursor, Error, ErrorKind, Result, Write};
+use std::io::{BufRead, Cursor, Error, ErrorKind, Read, Result, Write};
 use std::io::ErrorKind::{Interrupted, UnexpectedEof};
 use util::FindBits;
 
@@ -30,6 +30,47 @@ impl ErrorExt for Error {
         self.kind() == Interrupted
     }
 }
+
+macro_rules! def_read2 {
+    {
+        $( $name:ident ( $n:expr, $v:ident: $t:ty ) { $e:expr } )*
+    } => {
+        $(
+            /// Reads a `$t`.
+            ///
+            /// # Errors
+            ///
+            /// Error behavior is identical to `std::io::Read::read_exact`:
+            ///
+            /// * `ErrorKind::Interrupted` errors are ignored.
+            ///
+            /// * Other errors indicate failure.  Actual number of bytes read is
+            ///   unspecified, other than <= size of `$t`.
+            ///
+            fn $name(&mut self) -> Result<$t> {
+                use std::mem;
+
+                // Read into temporary buffer
+                let mut buf = [0; $n];
+                self.read_exact(&mut buf)?;
+
+                // Interpret as desired type
+                let $v: $t = unsafe { mem::transmute(buf) };
+                Ok($e)
+            }
+        )*
+    }
+}
+
+pub trait ReadExt: Read {
+    def_read2! {
+        read_u8  (1, v: u8 ) { v         }
+        read_u16 (2, v: u16) { v.to_be() }
+        read_u32 (4, v: u32) { v.to_be() }
+    }
+}
+
+impl<R: Read> ReadExt for R { }
 
 pub trait BufReadExt {
     fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, each: F)
@@ -242,8 +283,7 @@ mod tests {
     fn read_u8() {
         //  index      0     1
         let bytes   = [0x12, 0x34];
-        let stream  = Cursor::new(&bytes);
-        let mut src = Input::new(stream, "test");
+        let mut src = Cursor::new(&bytes);
 
         assert_eq!(src.read_u8().unwrap(), 0x12);
         assert_eq!(src.read_u8().unwrap(), 0x34);
@@ -254,8 +294,7 @@ mod tests {
     fn read_u16() {
         //  index      0           1           -
         let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A];
-        let stream  = Cursor::new(&bytes);
-        let mut src = Input::new(stream, "test");
+        let mut src = Cursor::new(&bytes);
 
         assert_eq!(src.read_u16().unwrap(), 0x1234);
         assert_eq!(src.read_u16().unwrap(), 0x5678);
@@ -266,8 +305,7 @@ mod tests {
     fn read_u32() {
         //  index      0                       1                       -
         let bytes   = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0xA5];
-        let stream  = Cursor::new(&bytes);
-        let mut src = Input::new(stream, "test");
+        let mut src = Cursor::new(&bytes);
 
         assert_eq!(src.read_u32().unwrap(), 0x12345678);
         assert_eq!(src.read_u32().unwrap(), 0x9ABCDEF0);
