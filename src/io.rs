@@ -78,6 +78,23 @@ pub trait BufReadExt {
     where
         F: FnMut(&[u8]);
 
+    /// Reads and discards bytes until a byte is found where the bits in `mask`
+    /// are equal to those in `bits`, or until end-of-stream is reached.
+    ///
+    /// Previously:
+    /// Returns a tuple `(found, count)` indicating whether a byte matched and
+    /// how many non-matching bytes were discarded.
+    ///
+    /// Currently:
+    /// Returns `(count, Some(byte))` or `(count, None)`.
+    ///
+    /// Previously:
+    /// On return, if a byte matched, the stream is positioned at that byte, so
+    /// that the byte will be the next one read.  Otherwise, the stream is
+    /// positioned at end-of-stream.
+    ///
+    /// Currently:
+    /// Positioned after found byte.
     fn skip_until_bits(&mut self, bits: u8, mask: u8)
         -> Result<(usize, Option<u8>)>
     {
@@ -137,103 +154,15 @@ impl<R: BufRead> BufReadExt for R {
     }
 }
 
-/// A named input stream.
-pub struct Input<R> {
-    stream: R,
-    offset: usize,
-    name:   String,
-}
-
-impl<R: BufRead> Input<R> {
-    /// Constructs a new `Input` with the given `stream` and `name`.
-    ///
-    /// Initial `offset` is `0`, regardless of the actual position of the given
-    /// stream.
-    #[inline]
-    pub fn new<N: ToString>(stream: R, name: N) -> Self {
-        Input {
-            stream: stream,
-            offset: 0,
-            name:   name.to_string(),
-        }
-    }
-
-    /// Returns the offset of the next unread byte in the input stream.
-    #[inline(always)]
-    pub fn offset(&self) -> usize { self.offset }
-
-    /// Reads and discards bytes until the given `predicate` returns `true` for
-    /// a byte (the byte *matches*), or until end-of-stream is reached.
-    ///
-    /// Returns a tuple `(found, count)` indicating whether a byte matched and
-    /// how many non-matching bytes were discarded.
-    ///
-    /// On return, if a byte matched, the stream is positioned at that byte, so
-    /// that the byte will be the next one read.  Otherwise, the stream is
-    /// positioned at end-of-stream.
-    pub fn skip_until<P: Fn(u8) -> bool>(&mut self, predicate: P) -> Result<(bool, usize)> {
-        // Implementation similar to std::io::read_until().
-        let mut total = 0;
-
-        loop {
-            let (found, count) = {
-                // Get next chunk from the stream
-                let buf = match self.stream.fill_buf() {
-                    Ok(b) => b,
-                    Err(ref e) if e.kind() == Interrupted => continue,
-                    Err(e) => return Err(e),
-                };
-
-                // Search chunk for the delimiter
-                match buf.iter().position(|&b| predicate(b)) {
-                    Some(i) => (true,  i),
-                    None    => (false, buf.len()),
-                }
-            };
-
-            // Discard skipped bytes
-            self.stream.consume(count);
-            self.offset += count;
-                 total  += count;
-
-            // Check if done
-            if found || count == 0 /*EOF*/ {
-                return Ok((found, total));
-            }
-        }
-    }
-
-    pub fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> Result<usize> {
-        self.stream.read_until(byte, buf)
-    }
-
-    /// Read the exact number of bytes required to fill `buf`.
-    ///
-    /// Same as `std::io::Read::read_exact()`, except that unexpected-EOF errors
-    /// have improved messaging.
-    pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        match self.stream.read_exact(buf) {
-            Ok(_) => {
-                // Advance position
-                self.offset += buf.len();
-                Ok(())
-            },
-            Err(ref e) if e.kind() == UnexpectedEof => {
-                // Change error message
-                Err(self.unexpected_eof())
-            },
-            e => e // Use error verbatim
-        }
-    }
-
-    /// Returns an unexpected-EOF error at the current offset.
-    fn unexpected_eof(&self) -> Error {
-        Error::new(
-            ErrorKind::UnexpectedEof,
-            format!("At offset {}: unexpected end of file.", self.offset)
-        )
-    }
-}
+// Saved from prevous work:
+//
+//  /// Returns an unexpected-EOF error at the current offset.
+//  fn unexpected_eof(&self) -> Error {
+//      Error::new(
+//          ErrorKind::UnexpectedEof,
+//          format!("At offset {}: unexpected end of file.", self.offset)
+//      )
+//  }
 
 #[cfg(test)]
 mod tests {
