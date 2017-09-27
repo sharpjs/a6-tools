@@ -313,22 +313,20 @@ mod tests {
     }
 
     #[test]
-    fn skip_until_found() {
+    fn skip_until_bits_found() {
         let bytes   = [0x12, 0x34, 0x56, 0x78];
-        let stream  = Cursor::new(&bytes);
-        let mut src = Input::new(stream, "test");
+        let mut src = Cursor::new(&bytes);
 
-        assert_eq!(src.skip_until(|b| b == 0x56).unwrap(), (true, 2));
-        assert_eq!(src.read_u8().unwrap(), 0x56);
+        assert_eq!(src.skip_until_bits(0x56, 0xFF).unwrap(), (3, Some(0x56)));
+        assert_eq!(src.read_u8().unwrap(), 0x78);
     }
 
     #[test]
-    fn skip_until_not_found() {
+    fn skip_until_bits_not_found() {
         let bytes   = [0x12, 0x34, 0x56, 0x78];
-        let stream  = Cursor::new(&bytes);
-        let mut src = Input::new(stream, "test");
+        let mut src = Cursor::new(&bytes);
 
-        assert_eq!(src.skip_until(|b| b == 0x0A).unwrap(), (false, 4));
+        assert_eq!(src.skip_until_bits(0x0A, 0xFF).unwrap(), (4, None));
     }
 }
 
