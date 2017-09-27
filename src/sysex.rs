@@ -15,168 +15,69 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::io::{self, BufRead};
-use std::io::ErrorKind::Interrupted;
-use self::SkipReason::*;
 
-const DATA_MIN:    u8 = 0x00;   // Data bytes
-const DATA_MAX:    u8 = 0x7F;   // L
-   // STAT_MIN:    u8 = 0x80;   // Status bytes
-   // STAT_MAX:    u8 = 0xEF;   // L
-const SYSEX_START: u8 = 0xF0;   // System exlusive
-   // SYSCM_MIN:   u8 = 0xF1;   // | System common
-   // SYSCM_MAX:   u8 = 0xF6;   // | L
-const SYSEX_END:   u8 = 0xF7;   // L
-const SYSRT_MIN:   u8 = 0xF8;   // System real-time
-const SYSRT_MAX:   u8 = 0xFF;   // L
+use io::ErrorExt;
+use self::SysExReadError::*;
 
-/// Trait for types that handle messages and related events produced when
-/// reading MIDI System Exclusive messages from a stream.
-pub trait Handler {
-    /// Invoked when a SysEx message is detected.
-    fn on_message(&mut self, pos: usize, msg: &[u8]) -> bool;
+// MIDI byte ranges
+const MIDI_DATA_MIN:     u8 = 0x00; // \_ Data bytes
+const MIDI_DATA_MAX:     u8 = 0x7F; // / 
+const MIDI_STATUS_MIN:   u8 = 0x80; // \_ Status bytes
+const MIDI_STATUS_MAX:   u8 = 0xEF; // /
+const MIDI_SYS_EX_START: u8 = 0xF0; // \_ System exlusive messages
+const MIDI_SYS_EX_END:   u8 = 0xF7; // /
+const MIDI_SYS_COM_MIN:  u8 = 0xF1; // \_ System common messages
+const MIDI_SYS_COM_MAX:  u8 = 0xF6; // /
+const MIDI_SYS_RT_MIN:   u8 = 0xF8; // \_ System real-time messages
+const MIDI_SYS_RT_MAX:   u8 = 0xFF; // /
 
-    /// Invoked when a chunk of bytes is skipped.
-    fn on_skip(&mut self, pos: usize, len: usize, reason: SkipReason) -> bool;
+/// Consumes the given `input` stream and detects MIDI System Exclusive messages
+/// of length `cap` or less.  Invokes the handler `on_msg` for each detected
+/// message and the handler `on_err` for each error condition.
+pub fn read_sysex<R, M, E>(
+    input:  &mut R,
+    cap:    usize,
+    on_msg: M,
+    on_err: E
+)   ->      io::Result<bool>
+where
+    R: BufRead,
+    M: Fn(usize, &[u8])          -> bool,
+    E: Fn(usize, SysExReadError) -> bool,
+{
+    let mut beg = 0;
+    let mut pos = 0;
+    let mut msg = vec![0u8; 0];
 
-    /// Invoked when end-of-stream is reached.
-    fn on_end(&mut self, pos: usize) -> bool;
+//    loop {
+//        // State A: Looking for SysEx
+//        loop {
+//            break
+//        }
+//
+//        // State B: In SysEx Message
+//        loop {
+//            break
+//        }
+//    }
+
+    Ok(true)
 }
 
-/// Conditions that cause bytes to be skipped when reading MIDI System Exclusive
-/// messages from a stream.
-pub enum SkipReason {
+/// Possible error conditions encountered by `read_sysex`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SysExReadError {
     /// The bytes did not contain a System Exclusive message.
     NotSysEx,
-
-    /// A System Exclusive message did not contain the required bytes
-    /// identifying the manufacturer or device.
-    MismatchedId,
 
     /// A System Exclusive message exceeded the maximum allowed length.
     Overflow,
 
-    /// A System Exclusive message was interrupted by an unexpected status byte.
+    /// A System Exclusive message was interrupted by an unexpected byte.
     UnexpectedByte,
 
     /// A System Exclusive message was interrupted by end-of-file.
     UnexpectedEof,
-}
-
-pub struct Detector<'a, H: Handler + 'a> {
-    state:   State,
-    message: Box<[u8]>,
-    handler: &'a mut H,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct State {
-    phase: Phase,   // State-machine phase
-    start: usize,   // Stream position of event in progress
-    pos:   usize,   // Stream position of next byte to consider
-    len:   usize,   // Message length
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Debug)]
-enum Phase {
-    Initial,
-    SysEx,
-}
-
-impl<'a, H> Detector<'a, H> where H: Handler + 'a {
-    pub fn new(capacity: usize, handler: &'a mut H) -> Self {
-        Self {
-            state:   State { phase: Phase::Initial, start: 0, pos: 0, len: 0 },
-            message: vec![0; capacity].into_boxed_slice(),
-            handler: handler,
-        }
-    }
-
-    pub fn read_from<R: BufRead>(&mut self, input: &mut R) -> io::Result<bool> {
-        loop {
-            // Read block from stream
-            let len = match input.fill_buf() {
-                Ok(buf) => {
-                    let len = buf.len();
-                    if len == 0           { return Ok(true ) }
-                    if !self.process(buf) { return Ok(false) }
-                    len
-                },
-                Err(e) => {
-                    if e.kind() == Interrupted { continue }
-                    return Err(e)
-                },
-            };
-
-            // Tell stream that block was consumed
-            input.consume(len);
-        }
-    }
-
-    pub fn process(&mut self, mut bytes: &[u8]) -> bool {
-        // Load state
-        let State { mut phase, mut start, mut pos, mut len } = self.state;
-        let mut buf = &mut self.message[..];
-        let mut ok  = false;
-
-        // Process bytes
-        for &byte in bytes {
-            match phase {
-                Phase::Initial => {
-                    match byte {
-                        SYSEX_BEGIN => {
-                            let cnt = pos - start;
-                            let ok  = cnt == 0 || self.handler.on_skip(start, cnt, NotSysEx);
-                            if !ok { break }
-                            phase = Phase::SysEx;
-                            start = pos;
-                            len   = 0;
-                        }
-                    }
-                },
-                Phase::SysEx => {
-                    match byte {
-                        DATA_MIN...DATA_MAX => {
-                            if len < buf.len() { buf[len] = byte; }
-                            len = len.saturating_add(1);
-                        },
-                        SYSEX_BEGIN => {
-                            let cnt = pos - start;
-                            let ok  = cnt == 0 || self.handler.on_skip(start, cnt, UnexpectedByte);
-                            if !ok { break }
-                            start = pos;
-                            len   = 0;
-                        },
-                        SYSEX_END => {
-                            let ok = self.handler.on_message(start, &buf[..len]);
-                            if !ok { break }
-                            phase = Phase::Initial;
-                            start = pos + 1;
-                            len   = 0;
-                        },
-                        SYSRT_MIN...SYSRT_MAX => (),
-                        _ => {
-                            let cnt = pos - start;
-                            let ok  = cnt == 0 || self.handler.on_skip(start, cnt, UnexpectedByte);
-                            if !ok { break }
-                            start = pos;
-                            len   = 0;
-                        }
-                    }
-                }
-            }
-
-            pos += 1;
-        }
-
-        // Save state
-        self.state = State { phase, start, pos, len };
-        ok
-    }
-
-    pub fn fire_skipped(&mut self, start: usize, pos: usize, reason: SkipReason) -> bool {
-        let count = pos - start;
-        count == 0 || self.handler.on_skip(start, count, reason)
-    }
 }
 
 /// Encodes a sequence of bytes into a sequence of 7-bit values.
