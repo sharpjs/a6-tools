@@ -78,23 +78,15 @@ pub trait BufReadExt {
     where
         F: FnMut(&[u8]);
 
-    /// Reads and discards bytes until a byte is found where the bits in `mask`
-    /// are equal to those in `bits`, or until end-of-stream is reached.
+    /// Reads and discards bytes until one matches the given bit pattern or EOF
+    /// is reached.  To match, a byte must equal `bits` in the bit positions
+    /// corresponding to the 1-bits in `mask`.
     ///
-    /// Previously:
-    /// Returns a tuple `(found, count)` indicating whether a byte matched and
-    /// how many non-matching bytes were discarded.
+    /// Returns a tuple `(count, found)` indicating how many non-matching bytes
+    /// were discarded and the matching byte, if any.
     ///
-    /// Currently:
-    /// Returns `(count, Some(byte))` or `(count, None)`.
-    ///
-    /// Previously:
-    /// On return, if a byte matched, the stream is positioned at that byte, so
-    /// that the byte will be the next one read.  Otherwise, the stream is
-    /// positioned at end-of-stream.
-    ///
-    /// Currently:
-    /// Positioned after found byte.
+    /// On return, if a byte matched, the stream is positioned at the following
+    /// byte. Otherwise, the stream is positioned at end-of-stream.
     fn skip_until_bits(&mut self, bits: u8, mask: u8)
         -> Result<(usize, Option<u8>)>
     {
