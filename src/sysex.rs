@@ -59,11 +59,7 @@ where
         {
             let (read, found) = input.skip_until_bits(MIDI_SYSEX_START, 0xFF)?;
 
-            let len = match found {
-                Some(_) => read - 1,
-                None    => read,
-            };
-
+            let len = get_len(read, found);
             if len != 0 {
                 notify!(on_err, pos, len, NotSysEx)
             }
@@ -78,10 +74,7 @@ where
         loop {
             let (read, found) = input.read_until_bits(0x80, 0x80, &mut buf)?;
 
-            let len = match found {
-                Some(_) => read - 1,
-                None    => read,
-            };
+            let len = get_len(read, found);
             
             match found {
                 Some(MIDI_SYSEX_START) => {
@@ -112,6 +105,14 @@ where
     }
 
     Ok(true)
+}
+
+#[inline]
+fn get_len(read: usize, found: Option<u8>) -> usize {
+    match found {
+        Some(_) => read - 1,
+        None    => read,
+    }
 }
 
 /// Possible error conditions encountered by `read_sysex`.
