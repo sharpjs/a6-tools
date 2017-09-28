@@ -24,12 +24,12 @@ const MIDI_DATA_MIN:     u8 = 0x00; // \_ Data bytes
 const MIDI_DATA_MAX:     u8 = 0x7F; // / 
 const MIDI_STATUS_MIN:   u8 = 0x80; // \_ Status bytes
 const MIDI_STATUS_MAX:   u8 = 0xEF; // /
-const MIDI_SYS_EX_START: u8 = 0xF0; // \_ System exlusive messages
-const MIDI_SYS_EX_END:   u8 = 0xF7; // /
-const MIDI_SYS_COM_MIN:  u8 = 0xF1; // \_ System common messages
-const MIDI_SYS_COM_MAX:  u8 = 0xF6; // /
-const MIDI_SYS_RT_MIN:   u8 = 0xF8; // \_ System real-time messages
-const MIDI_SYS_RT_MAX:   u8 = 0xFF; // /
+const MIDI_SYSEX_START: u8 = 0xF0; // \_ System exlusive messages
+const MIDI_SYSEX_END:   u8 = 0xF7; // /
+const MIDI_SYSCOM_MIN:  u8 = 0xF1; // \_ System common messages
+const MIDI_SYSCOM_MAX:  u8 = 0xF6; // /
+const MIDI_SYSRT_MIN:   u8 = 0xF8; // \_ System real-time messages
+const MIDI_SYSRT_MAX:   u8 = 0xFF; // /
 
 /// Consumes the given `input` stream and detects MIDI System Exclusive messages
 /// of length `cap` or less.  Invokes the handler `on_msg` for each detected
