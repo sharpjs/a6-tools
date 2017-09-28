@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::{self, BufRead};
-
-use io::ErrorExt;
+use std::io;
+use std::io::prelude::*;
+use io::*;
 use self::SysExReadError::*;
 
 // MIDI byte ranges
@@ -38,28 +38,41 @@ pub fn read_sysex<R, M, E>(
     input:  &mut R,
     cap:    usize,
     on_msg: M,
-    on_err: E
+    on_err: E,
 )   ->      io::Result<bool>
 where
     R: BufRead,
-    M: Fn(usize, &[u8])          -> bool,
-    E: Fn(usize, SysExReadError) -> bool,
+    M: Fn(usize, &[u8])                 -> bool,
+    E: Fn(usize, usize, SysExReadError) -> bool,
 {
-    let mut beg = 0;
     let mut pos = 0;
     let mut msg = vec![0u8; 0];
 
-//    loop {
-//        // State A: Looking for SysEx
-//        loop {
-//            break
-//        }
-//
-//        // State B: In SysEx Message
-//        loop {
-//            break
-//        }
-//    }
+    loop {
+        // State A: Not In SysEx Message
+        {
+            let (read, found) = input.skip_until_bits(MIDI_SYSEX_START, 0xFF)?;
+
+            let len = match found {
+                Some(_) => read - 1,
+                None    => read,
+            };
+
+            if len != 0 && !on_err(pos, len, NotSysEx) {
+                return Ok(false)
+            }
+
+            match found {
+                Some(_) => pos += read,
+                None    => return Ok(true),
+            }
+        }
+
+        // State B: In SysEx Message
+        loop {
+            break
+        }
+    }
 
     Ok(true)
 }
