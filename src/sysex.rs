@@ -46,7 +46,13 @@ where
     E: Fn(usize, usize, SysExReadError) -> bool,
 {
     let mut pos = 0;
-    let mut msg = vec![0u8; 0];
+    let mut buf = vec![0u8; cap].into_boxed_slice();
+
+    macro_rules! notify {
+        ($fn:ident, $($arg:expr),+) => {
+            if !$fn($($arg),+) { return Ok(false) }
+        }
+    }
 
     loop {
         // State A: Not In SysEx Message
@@ -58,8 +64,8 @@ where
                 None    => read,
             };
 
-            if len != 0 && !on_err(pos, len, NotSysEx) {
-                return Ok(false)
+            if len != 0 {
+                notify!(on_err, pos, len, NotSysEx)
             }
 
             match found {
@@ -70,6 +76,37 @@ where
 
         // State B: In SysEx Message
         loop {
+            let (read, found) = input.read_until_bits(0x80, 0x80, &mut buf)?;
+
+            let len = match found {
+                Some(_) => read - 1,
+                None    => read,
+            };
+            
+            match found {
+                Some(MIDI_SYSEX_START) => {
+                    notify!(on_err, pos, len, UnexpectedByte);
+                    continue // stay in state
+                },
+                Some(MIDI_SYSEX_END) => {
+                    if len > cap {
+                        notify!(on_err, pos, len, Overflow);
+                    } else {
+                        notify!(on_msg, pos, &buf[..len])
+                    }
+                },
+                Some(MIDI_SYSRT_MIN...MIDI_SYSRT_MAX) => {
+                    // ignore
+                    continue
+                },
+                Some(_) => {
+                    notify!(on_err, pos, len, UnexpectedByte)
+                },
+                None => {
+                    notify!(on_err, pos, len, UnexpectedEof)
+                }
+            }
+
             break
         }
     }
