@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::io::{BufRead, Cursor, Error, ErrorKind, Read, Result, Write};
+use std::io::prelude::*;
+use std::io::{self, Error};
 use std::io::ErrorKind::{Interrupted, UnexpectedEof};
 use util::FindBits;
 
@@ -47,7 +48,7 @@ macro_rules! def_read {
             /// * Other errors indicate failure.  Actual number of bytes read is
             ///   unspecified, other than <= size of `$t`.
             ///
-            fn $name(&mut self) -> Result<$t> {
+            fn $name(&mut self) -> io::Result<$t> {
                 use std::mem;
 
                 // Read into temporary buffer
@@ -86,7 +87,7 @@ pub trait BufReadExt {
     /// On return, if a byte matched, the stream is positioned at the following
     /// byte. Otherwise, the stream is positioned at EOF.
     fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, f: F)
-        -> Result<(usize, Option<u8>)>
+        -> io::Result<(usize, Option<u8>)>
     where
         F: FnMut(&[u8]);
 
@@ -100,7 +101,7 @@ pub trait BufReadExt {
     /// On return, if a byte matched, the stream is positioned at the following
     /// byte. Otherwise, the stream is positioned at EOF.
     fn skip_until_bits(&mut self, bits: u8, mask: u8)
-        -> Result<(usize, Option<u8>)>
+        -> io::Result<(usize, Option<u8>)>
     {
         self.scan_until_bits(bits, mask, |_| {})
     }
@@ -120,7 +121,7 @@ pub trait BufReadExt {
     /// On return, if a byte matched, the stream is positioned at the following
     /// byte. Otherwise, the stream is positioned at EOF.
     fn read_until_bits(&mut self, bits: u8, mask: u8, mut buf: &mut [u8])
-        -> Result<(usize, Option<u8>)>
+        -> io::Result<(usize, Option<u8>)>
     {
         self.scan_until_bits(bits, mask, |bytes| {
             buf.write(bytes).unwrap();
@@ -130,7 +131,7 @@ pub trait BufReadExt {
 
 impl<R: BufRead> BufReadExt for R {
     fn scan_until_bits<F>(&mut self, bits: u8, mask: u8, mut f: F)
-        -> Result<(usize, Option<u8>)>
+        -> io::Result<(usize, Option<u8>)>
     where
         F: FnMut(&[u8])
     {
@@ -181,8 +182,8 @@ impl<R: BufRead> BufReadExt for R {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Cursor, ErrorKind};
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn read_u8() {
@@ -192,7 +193,7 @@ mod tests {
 
         assert_eq!(src.read_u8().unwrap(), 0x12);
         assert_eq!(src.read_u8().unwrap(), 0x34);
-        assert_eq!(src.read_u8().err().unwrap().kind(), ErrorKind::UnexpectedEof);
+        assert_eq!(src.read_u8().err().unwrap().kind(), UnexpectedEof);
     }
 
     #[test]
@@ -203,7 +204,7 @@ mod tests {
 
         assert_eq!(src.read_u16().unwrap(), 0x1234);
         assert_eq!(src.read_u16().unwrap(), 0x5678);
-        assert_eq!(src.read_u16().err().unwrap().kind(), ErrorKind::UnexpectedEof);
+        assert_eq!(src.read_u16().err().unwrap().kind(), UnexpectedEof);
     }
 
     #[test]
@@ -214,7 +215,7 @@ mod tests {
 
         assert_eq!(src.read_u32().unwrap(), 0x12345678);
         assert_eq!(src.read_u32().unwrap(), 0x9ABCDEF0);
-        assert_eq!(src.read_u32().err().unwrap().kind(), ErrorKind::UnexpectedEof);
+        assert_eq!(src.read_u32().err().unwrap().kind(), UnexpectedEof);
     }
 
     #[test]
