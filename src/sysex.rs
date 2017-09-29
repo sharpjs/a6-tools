@@ -81,30 +81,34 @@ where
             len += get_len(read, found);
             
             match found {
+                Some(SYSRT_MIN...SYSRT_MAX) => {
+                    // ignore
+                },
                 Some(SYSEX_START) => {
                     fire!(on_err, pos, len, UnexpectedByte);
-                    len = 0;
-                    continue // remain in this state
+                    pos += read;
+                    len  = 0;
+                    // restart state B
                 },
                 Some(SYSEX_END) => {
                     if len > cap {
-                        fire!(on_err, pos, len, Overflow);
+                        fire!(on_err, pos, len, Overflow)
                     } else {
                         fire!(on_msg, pos, &buf[..len])
                     }
-                },
-                Some(SYSRT_MIN...SYSRT_MAX) => {
-                    continue // ignore
+                    pos += read;
+                    break // to state A
                 },
                 Some(_) => {
-                    fire!(on_err, pos, len, UnexpectedByte)
+                    fire!(on_err, pos, len, UnexpectedByte);
+                    pos += read;
+                    break // to State A
                 },
                 None => {
-                    fire!(on_err, pos, len, UnexpectedEof)
+                    fire!(on_err, pos, len, UnexpectedEof);
+                    return Ok(true)
                 }
             }
-
-            break
         }
     }
 
