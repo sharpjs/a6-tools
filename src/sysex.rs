@@ -62,6 +62,8 @@ where
         // State A: Not In SysEx Message
         {
             let (read, found) = input.skip_until_bits(SYSEX_START, ALL_BITS)?;
+
+            // `len` is NOT inclusive of the start byte.
             let len = get_len(read, found);
 
             if len != 0 {
@@ -78,6 +80,8 @@ where
         let mut len = 0;
         loop {
             let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[len..])?;
+
+            // `len` is NOT inclusive of the start/end bytes.
             len += get_len(read, found);
             
             match found {
@@ -86,7 +90,7 @@ where
                 },
                 Some(SYSEX_START) => {
                     fire!(on_err, pos, len, UnexpectedByte);
-                    pos += read;
+                    pos += len + 1;
                     len  = 0;
                     // restart state B
                 },
@@ -96,12 +100,12 @@ where
                     } else {
                         fire!(on_msg, pos, &buf[..len])
                     }
-                    pos += read;
+                    pos += len + 2;
                     break // to state A
                 },
                 Some(_) => {
                     fire!(on_err, pos, len, UnexpectedByte);
-                    pos += read;
+                    pos += len + 1;
                     break // to State A
                 },
                 None => {
@@ -265,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_not_sysex() {
+    fn test_read_junk() {
         let events = run_read(b"any", 10);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], Error { pos: 0, len: 3, err: NotSysEx });
@@ -276,6 +280,17 @@ mod tests {
         let events = run_read(b"\xF0msg\xF7", 10);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], Message { pos: 0, msg: b"msg".to_vec() });
+    }
+
+    #[test]
+    fn test_read_sysex_in_junk() {
+        let events = run_read(b"abc\xF0def\xF7ghi\xF0jkl\xF7mno", 10);
+        assert_eq!(events.len(), 5);
+        assert_eq!(events[0], Error   { pos:  0, len: 3, err: NotSysEx });
+        assert_eq!(events[1], Message { pos:  3, msg: b"def".to_vec()  });
+        assert_eq!(events[2], Error   { pos:  8, len: 3, err: NotSysEx });
+        assert_eq!(events[3], Message { pos: 11, msg: b"jkl".to_vec()  });
+        assert_eq!(events[4], Error   { pos: 16, len: 3, err: NotSysEx });
     }
 
     #[test]
