@@ -20,16 +20,20 @@ use io::*;
 use self::SysExReadError::*;
 
 // MIDI byte ranges
-const MIDI_DATA_MIN:     u8 = 0x00; // \_ Data bytes
-const MIDI_DATA_MAX:     u8 = 0x7F; // / 
-const MIDI_STATUS_MIN:   u8 = 0x80; // \_ Status bytes
-const MIDI_STATUS_MAX:   u8 = 0xEF; // /
-const MIDI_SYSEX_START: u8 = 0xF0; // \_ System exlusive messages
-const MIDI_SYSEX_END:   u8 = 0xF7; // /
-const MIDI_SYSCOM_MIN:  u8 = 0xF1; // \_ System common messages
-const MIDI_SYSCOM_MAX:  u8 = 0xF6; // /
-const MIDI_SYSRT_MIN:   u8 = 0xF8; // \_ System real-time messages
-const MIDI_SYSRT_MAX:   u8 = 0xFF; // /
+const DATA_MIN:    u8 = 0x00; // \_ Data bytes
+const DATA_MAX:    u8 = 0x7F; // / 
+const STATUS_MIN:  u8 = 0x80; // \_ Status bytes
+const STATUS_MAX:  u8 = 0xEF; // /
+const SYSEX_START: u8 = 0xF0; // \_ System exlusive messages
+const SYSEX_END:   u8 = 0xF7; // /
+const SYSCOM_MIN:  u8 = 0xF1; // \_ System common messages
+const SYSCOM_MAX:  u8 = 0xF6; // /
+const SYSRT_MIN:   u8 = 0xF8; // \_ System real-time messages
+const SYSRT_MAX:   u8 = 0xFF; // /
+
+// Masks
+const ALL_BITS:    u8 = 0xFF;
+const STATUS_BIT:  u8 = 0x80;
 
 /// Consumes the given `input` stream and detects MIDI System Exclusive messages
 /// of length `cap` or less.  Invokes the handler `on_msg` for each detected
@@ -57,7 +61,7 @@ where
     loop {
         // State A: Not In SysEx Message
         {
-            let (read, found) = input.skip_until_bits(MIDI_SYSEX_START, 0xFF)?;
+            let (read, found) = input.skip_until_bits(SYSEX_START, ALL_BITS)?;
             let len = get_len(read, found);
 
             if len != 0 {
@@ -76,20 +80,19 @@ where
             let len = get_len(read, found);
             
             match found {
-                Some(MIDI_SYSEX_START) => {
+                Some(SYSEX_START) => {
                     fire!(on_err, pos, len, UnexpectedByte);
                     continue // stay in state
                 },
-                Some(MIDI_SYSEX_END) => {
+                Some(SYSEX_END) => {
                     if len > cap {
                         fire!(on_err, pos, len, Overflow);
                     } else {
                         fire!(on_msg, pos, &buf[..len])
                     }
                 },
-                Some(MIDI_SYSRT_MIN...MIDI_SYSRT_MAX) => {
-                    // ignore
-                    continue
+                Some(SYSRT_MIN...SYSRT_MAX) => {
+                    continue // ignore
                 },
                 Some(_) => {
                     fire!(on_err, pos, len, UnexpectedByte)
