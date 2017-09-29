@@ -65,12 +65,12 @@ where
             let len = get_len(read, found);
 
             if len != 0 {
-                fire!(on_err, pos, len, NotSysEx)
+                fire!(on_err, pos, len, NotSysEx);
+                pos += len
             }
 
-            match found {
-                Some(_) => pos += read,
-                None    => return Ok(true),
+            if found.is_none() {
+                return Ok(true)
             }
         }
 
@@ -230,6 +230,53 @@ pub fn decode_7bit(src: &[u8], dst: &mut Vec<u8>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use self::ReadEvent::*;
+
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    enum ReadEvent {
+        Message { pos: usize, msg: Vec<u8> },
+        Error   { pos: usize, len: usize, err: SysExReadError },
+    }
+
+    fn run_read(mut bytes: &[u8], cap: usize) -> Vec<ReadEvent> {
+        use std::cell::RefCell;
+        let events = RefCell::new(vec![]);
+
+        let result = read_sysex(
+            &mut bytes, cap,
+            |pos, msg| {
+                events.borrow_mut().push(Message { pos, msg: msg.to_vec() });
+                true
+            },
+            |pos, len, err| {
+                events.borrow_mut().push(Error { pos, len, err });
+                true
+            },
+        );
+
+        assert!(result.unwrap());
+        events.into_inner()
+    }
+
+    #[test]
+    fn test_read_empty() {
+        let events = run_read(b"", 10);
+        assert_eq!(events.len(), 0);
+    }
+
+    #[test]
+    fn test_read_not_sysex() {
+        let events = run_read(b"any", 10);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Error { pos: 0, len: 3, err: NotSysEx });
+    }
+
+    #[test]
+    fn test_read_sysex() {
+        let events = run_read(b"\xF0msg\xF7", 10);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Message { pos: 0, msg: b"msg".to_vec() });
+    }
 
     #[test]
     fn test_encode_7bit() {
