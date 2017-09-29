@@ -75,14 +75,16 @@ where
         }
 
         // State B: In SysEx Message
+        let mut len = 0;
         loop {
-            let (read, found) = input.read_until_bits(0x80, 0x80, &mut buf)?;
-            let len = get_len(read, found);
+            let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[len..])?;
+            len += get_len(read, found);
             
             match found {
                 Some(SYSEX_START) => {
                     fire!(on_err, pos, len, UnexpectedByte);
-                    continue // stay in state
+                    len = 0;
+                    continue // remain in this state
                 },
                 Some(SYSEX_END) => {
                     if len > cap {
