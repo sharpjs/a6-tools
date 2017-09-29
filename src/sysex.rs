@@ -48,7 +48,7 @@ where
     let mut pos = 0;
     let mut buf = vec![0u8; cap].into_boxed_slice();
 
-    macro_rules! notify {
+    macro_rules! fire {
         ($fn:ident, $($arg:expr),+) => {
             if !$fn($($arg),+) { return Ok(false) }
         }
@@ -58,10 +58,10 @@ where
         // State A: Not In SysEx Message
         {
             let (read, found) = input.skip_until_bits(MIDI_SYSEX_START, 0xFF)?;
-
             let len = get_len(read, found);
+
             if len != 0 {
-                notify!(on_err, pos, len, NotSysEx)
+                fire!(on_err, pos, len, NotSysEx)
             }
 
             match found {
@@ -73,19 +73,18 @@ where
         // State B: In SysEx Message
         loop {
             let (read, found) = input.read_until_bits(0x80, 0x80, &mut buf)?;
-
             let len = get_len(read, found);
             
             match found {
                 Some(MIDI_SYSEX_START) => {
-                    notify!(on_err, pos, len, UnexpectedByte);
+                    fire!(on_err, pos, len, UnexpectedByte);
                     continue // stay in state
                 },
                 Some(MIDI_SYSEX_END) => {
                     if len > cap {
-                        notify!(on_err, pos, len, Overflow);
+                        fire!(on_err, pos, len, Overflow);
                     } else {
-                        notify!(on_msg, pos, &buf[..len])
+                        fire!(on_msg, pos, &buf[..len])
                     }
                 },
                 Some(MIDI_SYSRT_MIN...MIDI_SYSRT_MAX) => {
@@ -93,10 +92,10 @@ where
                     continue
                 },
                 Some(_) => {
-                    notify!(on_err, pos, len, UnexpectedByte)
+                    fire!(on_err, pos, len, UnexpectedByte)
                 },
                 None => {
-                    notify!(on_err, pos, len, UnexpectedEof)
+                    fire!(on_err, pos, len, UnexpectedEof)
                 }
             }
 
