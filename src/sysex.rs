@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::cmp;
 use std::io;
 use std::io::prelude::*;
 use io::*;
@@ -83,7 +84,8 @@ where
 
         // State B: In SysEx Message
         loop {
-            let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[len..])?;
+            let idx = cmp::min(len, cap);
+            let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[idx..])?;
             next += read;
             len  += get_len(read, found);
             
@@ -92,14 +94,14 @@ where
                     // ignore
                 },
                 Some(SYSEX_START) => {
-                    fire!(on_err, start, len + 1, UnexpectedByte);
+                    fire!(on_err, start, next - start - 1, UnexpectedByte);
                     start = next - 1;
                     len   = 0;
                     // restart state B
                 },
                 Some(SYSEX_END) => {
                     if len > cap {
-                        fire!(on_err, start, len + 2, Overflow)
+                        fire!(on_err, start, next - start, Overflow)
                     } else {
                         fire!(on_msg, start, &buf[..len])
                     }
@@ -108,13 +110,13 @@ where
                     break // to state A
                 },
                 Some(_) => {
-                    fire!(on_err, start, len + 1, UnexpectedByte);
+                    fire!(on_err, start, next - start - 1, UnexpectedByte);
                     start = next - 1;
                     len   = 1;
                     break // to State A
                 },
                 None => {
-                    fire!(on_err, start, len + 1, UnexpectedEof);
+                    fire!(on_err, start, next - start, UnexpectedEof);
                     return Ok(true)
                 }
             }
@@ -333,6 +335,13 @@ mod tests {
         let events = run_read(b"\xF0abc\xF7", 2);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], Error { pos: 0, len: 5, err: Overflow });
+    }
+
+    #[test]
+    fn test_read_sysex_overflow_2() {
+        let events = run_read(b"\xF0abc\xF8def\xF7", 2);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Error { pos: 0, len: 9, err: Overflow });
     }
 
     #[test]
