@@ -49,9 +49,14 @@ where
     M: Fn(usize, &[u8])                 -> bool,
     E: Fn(usize, usize, SysExReadError) -> bool,
 {
-    let mut pos = 0;
+    let mut start = 0;  // Start position of message or skipped chunk
+    let mut next  = 0;  // Position of next unread byte
+    let mut len   = 0;  // Length of message data (no start/end bytes) or skipped chunk (all bytes)
+
+    // Message data, without SysEx start/end bytes
     let mut buf = vec![0u8; cap].into_boxed_slice();
 
+    // Helper for invoking the on_msg/on_err handlers
     macro_rules! fire {
         ($fn:ident, $($arg:expr),+) => {
             if !$fn($($arg),+) { return Ok(false) }
@@ -62,13 +67,13 @@ where
         // State A: Not In SysEx Message
         {
             let (read, found) = input.skip_until_bits(SYSEX_START, ALL_BITS)?;
-
-            // `len` is NOT inclusive of the start byte.
-            let len = get_len(read, found);
+            next += read;
+            len  += get_len(read, found);
 
             if len != 0 {
-                fire!(on_err, pos, len, NotSysEx);
-                pos += len
+                fire!(on_err, start, len, NotSysEx);
+                start += len;
+                len    = 0;
             }
 
             if found.is_none() {
@@ -77,39 +82,39 @@ where
         }
 
         // State B: In SysEx Message
-        let mut len = 0;
         loop {
             let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[len..])?;
-
-            // `len` is NOT inclusive of the start/end bytes.
-            len += get_len(read, found);
+            next += read;
+            len  += get_len(read, found);
             
             match found {
                 Some(SYSRT_MIN...SYSRT_MAX) => {
                     // ignore
                 },
                 Some(SYSEX_START) => {
-                    fire!(on_err, pos, len, UnexpectedByte);
-                    pos += len + 1;
-                    len  = 0;
+                    fire!(on_err, start, len + 1, UnexpectedByte);
+                    start = next - 1;
+                    len   = 0;
                     // restart state B
                 },
                 Some(SYSEX_END) => {
                     if len > cap {
-                        fire!(on_err, pos, len, Overflow)
+                        fire!(on_err, start, len + 2, Overflow)
                     } else {
-                        fire!(on_msg, pos, &buf[..len])
+                        fire!(on_msg, start, &buf[..len])
                     }
-                    pos += len + 2;
+                    start = next;
+                    len   = 0;
                     break // to state A
                 },
                 Some(_) => {
-                    fire!(on_err, pos, len, UnexpectedByte);
-                    pos += len + 1;
+                    fire!(on_err, start, len + 1, UnexpectedByte);
+                    start = next - 1;
+                    len   = 1;
                     break // to State A
                 },
                 None => {
-                    fire!(on_err, pos, len, UnexpectedEof);
+                    fire!(on_err, start, len + 1, UnexpectedEof);
                     return Ok(true)
                 }
             }
@@ -263,27 +268,27 @@ mod tests {
     }
 
     #[test]
-    fn test_read_empty() {
+    fn test_read_sysex_empty() {
         let events = run_read(b"", 10);
         assert_eq!(events.len(), 0);
     }
 
     #[test]
-    fn test_read_junk() {
+    fn test_read_sysex_junk() {
         let events = run_read(b"any", 10);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], Error { pos: 0, len: 3, err: NotSysEx });
     }
 
     #[test]
-    fn test_read_sysex() {
+    fn test_read_sysex_sysex() {
         let events = run_read(b"\xF0msg\xF7", 10);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], Message { pos: 0, msg: b"msg".to_vec() });
     }
 
     #[test]
-    fn test_read_sysex_in_junk() {
+    fn test_read_sysex_with_junk() {
         let events = run_read(b"abc\xF0def\xF7ghi\xF0jkl\xF7mno", 10);
         assert_eq!(events.len(), 5);
         assert_eq!(events[0], Error   { pos:  0, len: 3, err: NotSysEx });
@@ -291,6 +296,43 @@ mod tests {
         assert_eq!(events[2], Error   { pos:  8, len: 3, err: NotSysEx });
         assert_eq!(events[3], Message { pos: 11, msg: b"jkl".to_vec()  });
         assert_eq!(events[4], Error   { pos: 16, len: 3, err: NotSysEx });
+    }
+
+    #[test]
+    fn test_read_sysex_with_sysrt() {
+        let events = run_read(b"\xF0abc\xF8def\xF7", 10);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Message { pos: 0, msg: b"abcdef".to_vec() });
+    }
+
+    #[test]
+    fn test_read_sysex_interrupted_by_sysex() {
+        let events = run_read(b"\xF0abc\xF0def\xF7", 10);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0], Error   { pos: 0, len: 4, err: UnexpectedByte });
+        assert_eq!(events[1], Message { pos: 4, msg: b"def".to_vec() });
+    }
+
+    #[test]
+    fn test_read_sysex_interrupted_by_status() {
+        let events = run_read(b"\xF0abc\xA5def\xF7", 10);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0], Error { pos: 0, len: 4, err: UnexpectedByte });
+        assert_eq!(events[1], Error { pos: 4, len: 5, err: NotSysEx       });
+    }
+
+    #[test]
+    fn test_read_sysex_interrupted_by_eof() {
+        let events = run_read(b"\xF0abc", 10);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Error { pos: 0, len: 4, err: UnexpectedEof });
+    }
+
+    #[test]
+    fn test_read_sysex_overflow() {
+        let events = run_read(b"\xF0abc\xF7", 2);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], Error { pos: 0, len: 5, err: Overflow });
     }
 
     #[test]
