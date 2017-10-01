@@ -17,6 +17,7 @@
 // Squelch noise while experimenting
 #![allow(warnings)]
 
+pub mod a6;
 pub mod io;
 pub mod sysex;
 pub mod util;
