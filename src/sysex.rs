@@ -99,8 +99,9 @@ where
                     // remain in state B
                 },
                 Some(SYSEX_START) => {
-                    fire!(on_err, start, next - start - 1, UnexpectedByte);
-                    start = next - 1;
+                    let end = next - 1;
+                    fire!(on_err, start, end - start, UnexpectedByte);
+                    start = end;
                     len   = 0;
                     // restart state B
                 },
@@ -115,8 +116,9 @@ where
                     break // to state A
                 },
                 Some(_) => {
-                    fire!(on_err, start, next - start - 1, UnexpectedByte);
-                    start = next - 1;
+                    let end = next - 1;
+                    fire!(on_err, start, end - start, UnexpectedByte);
+                    start = end;
                     break // to State A
                 },
                 None => {
