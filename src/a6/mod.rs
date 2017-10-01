@@ -21,27 +21,27 @@ const DATA_POS:   usize = 5; // Start position of data
 // Manufacturer/device identifer bytes
 static ID: [u8; 4] = [0x00, 0x00, 0x0E, 0x1D];
 
-/// Operation types in an A6 System Exclusive message.
+/// A6 System Exclusive message types
 #[repr(u8)]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Opcode {
-    PgmDump           = 0x00,
-    PgmDumpReq        = 0x01,
-    PgmEditBufDump    = 0x02,
-    PgmEditBufDumpReq = 0x03,
-    MixDump           = 0x04,
-    MixDumpReq        = 0x05,
-    MixEditBufDump    = 0x06,
-    MixEditBufDumpReq = 0x07,
-    GlobalDataDump    = 0x08,
-    GlobalDataDumpReq = 0x09,
-    PgmBankReq        = 0x0A,
-    MkxBankReq        = 0x0B,
-    DumpAllReq        = 0x0C,
-    ModeSelect        = 0x0D,
-    Edit              = 0x0E,
-    UpdateOs          = 0x30,
-    UpdateBoot        = 0x3F,
+    Pgm           = 0x00,
+    PgmReq        = 0x01,
+    PgmEditBuf    = 0x02,
+    PgmEditBufReq = 0x03,
+    Mix           = 0x04,
+    MixReq        = 0x05,
+    MixEditBuf    = 0x06,
+    MixEditBufReq = 0x07,
+    GlobalData    = 0x08,
+    GlobalDataReq = 0x09,
+    PgmBankReq    = 0x0A,
+    MixBankReq    = 0x0B,
+    AllReq        = 0x0C,
+    Mode          = 0x0D,
+    Edit          = 0x0E,
+    OsBlock       = 0x30,
+    BootBlock     = 0x3F,
 }
 
 pub fn recognize_sysex(msg: &[u8]) -> Option<(Opcode, &[u8])> {
@@ -70,7 +70,7 @@ mod tests {
 
         let rec = recognize_sysex(msg);
 
-        assert_eq!(rec, Some((Opcode::UpdateOs, &[0x5A, 0xA5][..])))
+        assert_eq!(rec, Some((Opcode::OsBlock, &[0x5A, 0xA5][..])))
     }
 
     #[test]
