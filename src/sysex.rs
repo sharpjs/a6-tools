@@ -69,29 +69,34 @@ where
         {
             let (read, found) = input.skip_until_bits(SYSEX_START, ALL_BITS)?;
             next += read;
-            len  += get_len(read, found);
 
+            let end = match found {
+                Some(_) => next - 1,
+                None    => next,
+            };
+
+            let len = end - start;
             if len != 0 {
                 fire!(on_err, start, len, NotSysEx);
-                start += len;
-                len    = 0;
             }
 
-            if found.is_none() {
-                return Ok(true)
+            match found {
+                Some(_) => start = end,
+                None    => return Ok(true),
             }
         }
 
         // State B: In SysEx Message
+        len = 0;
         loop {
-            let idx = cmp::min(len, cap);
+            let idx           = cmp::min(len, cap);
             let (read, found) = input.read_until_bits(STATUS_BIT, STATUS_BIT, &mut buf[idx..])?;
             next += read;
-            len  += get_len(read, found);
             
             match found {
                 Some(SYSRT_MIN...SYSRT_MAX) => {
-                    // ignore
+                    len += read - 1;
+                    // remain in state B
                 },
                 Some(SYSEX_START) => {
                     fire!(on_err, start, next - start - 1, UnexpectedByte);
@@ -100,19 +105,18 @@ where
                     // restart state B
                 },
                 Some(SYSEX_END) => {
+                    len += read - 1;
                     if len > cap {
                         fire!(on_err, start, next - start, Overflow)
                     } else {
                         fire!(on_msg, start, &buf[..len])
                     }
                     start = next;
-                    len   = 0;
                     break // to state A
                 },
                 Some(_) => {
                     fire!(on_err, start, next - start - 1, UnexpectedByte);
                     start = next - 1;
-                    len   = 1;
                     break // to State A
                 },
                 None => {
@@ -124,14 +128,6 @@ where
     }
 
     Ok(true)
-}
-
-#[inline]
-fn get_len(read: usize, found: Option<u8>) -> usize {
-    match found {
-        Some(_) => read - 1,
-        None    => read,
-    }
 }
 
 /// Possible error conditions encountered by `read_sysex`.
