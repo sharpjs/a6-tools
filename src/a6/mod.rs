@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+mod update;
+
+pub use self::update::*;
+
 // Position constants
 const OPCODE_POS: usize = 4; // Position of opcode
 const DATA_POS:   usize = 5; // Start position of data
