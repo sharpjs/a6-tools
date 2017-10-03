@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+mod bitmap;
+pub use self::bitmap::*;
+
 use std::cmp::min;
 
 // The alignment in bytes for `usize` values.
