@@ -16,6 +16,7 @@
 
 use std::mem::size_of;
 use io::*;
+use util::BoolArray;
 
 const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
 const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
@@ -24,12 +25,6 @@ const BLOCK_7BIT_LEN:   usize = 311;  // 7-bit-encoded block length (bytes)
 // Maximum image size
 const IMAGE_MAX_BYTES:  usize = 2 * 1024 * 1024;
 const IMAGE_MAX_BLOCKS: usize = IMAGE_MAX_BYTES / BLOCK_DATA_LEN;
-
-// The alignment in bytes for `usize` values.
-#[cfg(target_pointer_width = "32")]
-const BLOCK_MAP_SHIFT: usize = 5;
-#[cfg(target_pointer_width = "64")]
-const BLOCK_MAP_SHIFT: usize = 6;
 
 /// Metadata describing a bootloader/OS update block.
 #[repr(C, packed)]
@@ -72,7 +67,7 @@ struct BlockDecoderState {
     header: BlockHeader,
 
     /// Map of 'done' bits for each block.
-    done_map: Box<[usize]>,
+    blocks_done: BoolArray,
 
     /// Buffer for image in progress.
     image: Box<[u8]>,
@@ -108,33 +103,19 @@ impl BlockDecoder {
         match self.state {
             Some(ref mut state) => state,
             None => {
-                let map_len = header.block_count as usize >> BLOCK_MAP_SHIFT;
+                let map_len = header.block_count as usize;
                 let img_len = header.length      as usize;
 
                 // ...
 
                 self.state = Some(BlockDecoderState {
                     header,
-                    done_map: vec![0; map_len].into_boxed_slice(),
-                    image:    vec![0; img_len].into_boxed_slice(),
+                    blocks_done: BoolArray::new(map_len),
+                    image:       vec![0; img_len].into_boxed_slice(),
                 });
                 self.state.as_mut().unwrap()
             },
         }
-    }
-}
-
-impl BlockDecoderState {
-    fn is_block_done(&self, index: usize) -> bool {
-        let i = index >> BLOCK_MAP_SHIFT;
-        let b = index & !(usize::max_value() << index);
-        self.done_map[i] & 1 << b != 0
-    }
-
-    fn set_block_done(&mut self, index: usize) {
-        let i = index >> BLOCK_MAP_SHIFT;
-        let b = index & !(usize::max_value() << index);
-        self.done_map[i] |= 1 << b;
     }
 }
 
