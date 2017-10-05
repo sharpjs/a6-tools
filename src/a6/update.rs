@@ -92,30 +92,40 @@ impl BlockDecoder {
         };
 
         let state = self.check_state(header);
-        let data  = block;
 
-        // ...
+        state.write_block(header.block_index as usize, block);
 
         Ok(())
     }
 
     fn check_state(&mut self, header: BlockHeader) -> &mut BlockDecoderState {
         match self.state {
-            Some(ref mut state) => state,
+            Some(ref mut state) => {
+                state
+            },
             None => {
-                let map_len = header.block_count as usize;
-                let img_len = header.length      as usize;
+                let cnt = header.block_count as usize;
+                let len = header.length      as usize;
 
                 // ...
 
                 self.state = Some(BlockDecoderState {
                     header,
-                    blocks_done: BoolArray::new(map_len),
-                    image:       vec![0; img_len].into_boxed_slice(),
+                    blocks_done: BoolArray::new(cnt),
+                    image:       vec![0; len].into_boxed_slice(),
                 });
                 self.state.as_mut().unwrap()
             },
         }
+    }
+}
+
+impl BlockDecoderState {
+    fn write_block(&mut self, index: usize, data: &[u8]) {
+        let start = index * BLOCK_DATA_LEN;
+        let end   = start + BLOCK_DATA_LEN;
+        self.image[start..end].copy_from_slice(data);
+        self.blocks_done.set(index);
     }
 }
 
