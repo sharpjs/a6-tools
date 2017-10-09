@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::fmt;
 use std::mem::size_of;
 use io::*;
 use util::BoolArray;
@@ -57,8 +58,9 @@ pub struct Block {
 }
 
 #[derive(Clone)]
-pub struct BlockDecoder {
-    state: Option<BlockDecoderState>,
+pub struct BlockDecoder<H: BlockDecoderHandler> {
+    state:   Option<BlockDecoderState>,
+    handler: H,
 }
 
 #[derive(Clone)]
@@ -73,9 +75,80 @@ struct BlockDecoderState {
     image: Box<[u8]>,
 }
 
-impl BlockDecoder {
-    fn new() -> Self {
-        Self { state: None }
+pub trait BlockDecoderHandler {
+    fn on_err(&self, e: BlockDecoderError) -> bool;
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlockDecoderError {
+    InvalidBlockLength      { actual: usize                          },
+    InvalidImageLength      { actual: u32                            },
+    InvalidBlockCount       { actual: u16, expected: u16             },
+    InconsistentVersion     { actual: u32, expected: u32, index: u16 },
+    InconsistentChecksum    { actual: u32, expected: u32, index: u16 },
+    InconsistentImageLength { actual: u32, expected: u32, index: u16 },
+    InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
+    ChecksumMismatch        { actual: u32, expected: u32             },
+    MissingBlock            { count:  u16,                index: u16 },
+}
+
+use self::BlockDecoderError::*;
+
+impl fmt::Display for BlockDecoderError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            InvalidBlockLength { actual } => write!(
+                f,
+                "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long.",
+                actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN,
+            ),
+            InvalidImageLength { actual } => write!(
+                f,
+                "Invalid image length: {} byte(s). The maximum image length is {} bytes.",
+                actual, IMAGE_MAX_BYTES,
+            ),
+            InvalidBlockCount { actual, expected } => write!(
+                f,
+                "Invalid block count: {} block(s). The image length requires {} blocks.",
+                actual, expected,
+            ),
+            InconsistentVersion { actual, expected, index } => write!(
+                f,
+                "Block {}: inconsistent version: {:X}. The initial block specified version {:X}.",
+                index, actual, expected
+            ),
+            InconsistentChecksum { actual, expected, index } => write!(
+                f,
+                "Block {}: inconsistent checksum: {:X}. The initial block specified checksum {:X}.",
+                index, actual, expected
+            ),
+            InconsistentImageLength { actual, expected, index } => write!(
+                f,
+                "Block {}: inconsistent image length: {} byte(s). The initial block specified a length of {} byte(s).",
+                index, actual, expected
+            ),
+            InconsistentBlockCount { actual, expected, index } => write!(
+                f,
+                "Block {}: inconsistent block count: {} block(s). The initial block specified a count of {} block(s).",
+                index, actual, expected
+            ),
+            ChecksumMismatch { actual, expected } => write!(
+                f,
+                "Computed checksum {:X} does not match checksum {:X} specified in block headers.",
+                actual, expected
+            ),
+            MissingBlock { count, index } => write!(
+                f,
+                "Incomplete image: {} missing block(s). First missing block is at index {} (0-based).",
+                count, index
+            ),
+        }
+    }
+}
+
+impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
+    fn new(handler: H) -> Self {
+        Self { state: None, handler }
     }
 
     fn consume_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
@@ -117,6 +190,24 @@ impl BlockDecoder {
                 self.state.as_mut().unwrap()
             },
         }
+    }
+}
+
+impl BlockHeader {
+    fn require_match(&self, other: &Self) -> Option<String> {
+        if self.version != other.version {
+            return Some("version mismatch".into())
+        }
+        if self.checksum != other.checksum {
+            return Some("checksum mismatch".into())
+        }
+        if self.length != other.length {
+            return Some("length mismatch".into())
+        }
+        if self.block_count != other.block_count {
+            return Some("block count mismatch".into())
+        }
+        None
     }
 }
 
