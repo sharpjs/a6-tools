@@ -16,8 +16,11 @@
 
 use std::fmt;
 use std::mem::size_of;
+
 use io::*;
 use util::BoolArray;
+
+use self::BlockDecoderError::*;
 
 const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
 const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
@@ -92,54 +95,43 @@ pub enum BlockDecoderError {
     MissingBlock            { count:  u16,                index: u16 },
 }
 
-use self::BlockDecoderError::*;
-
 impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             InvalidBlockLength { actual } => write!(
-                f,
-                "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long.",
+                f, "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long.",
                 actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN,
             ),
             InvalidImageLength { actual } => write!(
-                f,
-                "Invalid image length: {} byte(s). The maximum image length is {} bytes.",
+                f, "Invalid image length: {} byte(s). The maximum image length is {} bytes.",
                 actual, IMAGE_MAX_BYTES,
             ),
             InvalidBlockCount { actual, expected } => write!(
-                f,
-                "Invalid block count: {} block(s). The image length requires {} blocks.",
+                f, "Invalid block count: {} block(s). The image length requires {} blocks.",
                 actual, expected,
             ),
             InconsistentVersion { actual, expected, index } => write!(
-                f,
-                "Block {}: inconsistent version: {:X}. The initial block specified version {:X}.",
+                f, "Block {}: inconsistent version: {:X}. The initial block specified version {:X}.",
                 index, actual, expected
             ),
             InconsistentChecksum { actual, expected, index } => write!(
-                f,
-                "Block {}: inconsistent checksum: {:X}. The initial block specified checksum {:X}.",
+                f, "Block {}: inconsistent checksum: {:X}. The initial block specified checksum {:X}.",
                 index, actual, expected
             ),
             InconsistentImageLength { actual, expected, index } => write!(
-                f,
-                "Block {}: inconsistent image length: {} byte(s). The initial block specified a length of {} byte(s).",
+                f, "Block {}: inconsistent image length: {} byte(s). The initial block specified a length of {} byte(s).",
                 index, actual, expected
             ),
             InconsistentBlockCount { actual, expected, index } => write!(
-                f,
-                "Block {}: inconsistent block count: {} block(s). The initial block specified a count of {} block(s).",
+                f, "Block {}: inconsistent block count: {} block(s). The initial block specified a count of {} block(s).",
                 index, actual, expected
             ),
             ChecksumMismatch { actual, expected } => write!(
-                f,
-                "Computed checksum {:X} does not match checksum {:X} specified in block headers.",
+                f, "Computed checksum {:X} does not match checksum {:X} specified in block headers.",
                 actual, expected
             ),
             MissingBlock { count, index } => write!(
-                f,
-                "Incomplete image: {} missing block(s). First missing block is at index {} (0-based).",
+                f, "Incomplete image: {} missing block(s). First missing block is at index {} (0-based).",
                 count, index
             ),
         }
@@ -152,8 +144,10 @@ impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
     }
 
     fn consume_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
-        if block.len() != size_of::<Block>() {
-            return Err(())
+        if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
+            let err = InvalidBlockLength { actual: block.len() };
+            self.handler.on_err(err);
+            return Err(());
         }
 
         let header = BlockHeader {
