@@ -26,9 +26,12 @@ const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
 const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
 const BLOCK_7BIT_LEN:   usize = 311;  // 7-bit-encoded block length (bytes)
 
+const BLOCK_DIV_SHIFT:  usize = 8;
+const BLOCK_REM_MASK:   usize = (1 << BLOCK_DIV_SHIFT) - 1;
+
 // Maximum image size
-const IMAGE_MAX_BYTES:  usize = 2 * 1024 * 1024;
-const IMAGE_MAX_BLOCKS: usize = IMAGE_MAX_BYTES / BLOCK_DATA_LEN;
+const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
+const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
 
 /// Metadata describing a bootloader/OS update block.
 #[repr(C, packed)]
@@ -143,11 +146,12 @@ impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
         Self { state: None, handler }
     }
 
-    fn consume_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
+    fn consume_block(&mut self, mut block: &[u8]) -> bool {
+
         if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
             let err = InvalidBlockLength { actual: block.len() };
             self.handler.on_err(err);
-            return Err(());
+            return false;
         }
 
         let header = BlockHeader {
@@ -162,7 +166,7 @@ impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
 
         state.write_block(header.block_index as usize, block);
 
-        Ok(())
+        true
     }
 
     fn check_state(&mut self, header: BlockHeader) -> &mut BlockDecoderState {
@@ -171,19 +175,65 @@ impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
                 state
             },
             None => {
-                let cnt = header.block_count as usize;
-                let len = header.length      as usize;
+                let mut ok = true;
 
-                // ...
+                // Validate claimed image length
+                if header.length > IMAGE_MAX_BYTES {
+                    self.handler.on_err(InvalidImageLength {
+                        actual: header.length,
+                    });
+                    ok = false;
+                }
 
+                // Validate claimed block count
+                let required_block_count = required_blocks(header.length);
+                if header.block_count != required_block_count {
+                    self.handler.on_err(InvalidBlockCount {
+                        actual:   header.block_count,
+                        expected: required_block_count,
+                    });
+                    ok = false;
+                }
+
+                // Initialize decoder state
                 self.state = Some(BlockDecoderState {
                     header,
-                    blocks_done: BoolArray::new(cnt),
-                    image:       vec![0; len].into_boxed_slice(),
+                    blocks_done: BoolArray::new(header.block_count as usize),
+                    image:       vec![0; header.length as usize].into_boxed_slice(),
                 });
+
                 self.state.as_mut().unwrap()
             },
         }
+    }
+
+    fn require_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
+        let mut matched = true;
+        if actual.version != expected.version {
+            return Some("version mismatch".into())
+            matched = false;
+        }
+        if actual.checksum != expected.checksum {
+            return Some("checksum mismatch".into())
+            matched = false;
+        }
+        if actual.length != expected.length {
+            return Some("length mismatch".into())
+            matched = false;
+        }
+        if actual.block_count != expected.block_count {
+            return Some("block count mismatch".into())
+            matched = false;
+        }
+        None
+    }
+}
+
+fn required_blocks(len: u32) -> u16 {
+    // Ceiling of `len` divided by `BLOCK_DATA_LEN`
+    match len {
+        0 => 0,
+        n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
     }
 }
 
