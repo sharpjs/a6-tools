@@ -16,11 +16,12 @@
 
 use std::fmt;
 use std::mem::size_of;
+use std::ops::Range;
 
 use io::*;
-use util::BoolArray;
+use util::{BoolArray, Handler};
 
-use self::BlockDecoderError::*;
+//use self::BlockDecoderError::*;
 
 const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
 const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
@@ -64,12 +65,6 @@ pub struct Block {
 }
 
 #[derive(Clone)]
-pub struct BlockDecoder<H: BlockDecoderHandler> {
-    state:   Option<BlockDecoderState>,
-    handler: H,
-}
-
-#[derive(Clone)]
 struct BlockDecoderState {
     /// Block 0 metadata.
     header: BlockHeader,
@@ -81,10 +76,43 @@ struct BlockDecoderState {
     image: Box<[u8]>,
 }
 
-pub trait BlockDecoderHandler {
-    fn on_err(&self, e: BlockDecoderError) -> bool;
+impl BlockDecoderState {
+    fn new(header: BlockHeader) -> Self {
+        let n = header.block_count as usize;
+        Self {
+            header,
+            blocks_done: BoolArray::new(n),
+            image:       vec![0; n << BLOCK_DIV_SHIFT].into_boxed_slice(),
+        }
+    }
+
+    #[inline]
+    fn image(&self) -> &[u8] { &*self.image }
+
+    fn write_block(&mut self, index: u16, data: &[u8]) {
+        self.image[block_range(index)].copy_from_slice(data);
+        self.blocks_done.set(index as usize);
+    }
 }
 
+#[inline]
+fn block_range(index: u16) -> Range<usize> {
+    let index = index as usize;
+    let start = index << BLOCK_DIV_SHIFT;
+    let end   = start  + BLOCK_DATA_LEN;
+    start..end
+}
+
+/*
+#[derive(Clone)]
+pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
+    state:    Option<BlockDecoderState>,
+    capacity: u32,
+    handler:  H,
+}
+*/
+
+/*
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockDecoderError {
     InvalidBlockLength      { actual: usize                          },
@@ -97,7 +125,140 @@ pub enum BlockDecoderError {
     ChecksumMismatch        { actual: u32, expected: u32             },
     MissingBlock            { count:  u16,                index: u16 },
 }
+*/
 
+/*
+impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
+    /// Creates a `BlockDecoder` with the given `capacity` and `handler`.
+    pub fn new(capacity: u32, handler: H) -> Self {
+        if capacity > IMAGE_MAX_BYTES {
+            panic!("Capacity {} is beyond the supported range.", capacity);
+        }
+        Self { state: None, capacity, handler }
+    }
+
+    /// Decodes the given `block`, adding its data to the image in progress.
+    pub fn decode_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
+        // Validate block length
+        if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
+            self.handler.on_err(InvalidBlockLength {
+                actual: block.len()
+            });
+            return Err(());
+        }
+
+        // Read block header
+        let header = BlockHeader {
+            version:     block.read_u32().unwrap(),
+            checksum:    block.read_u32().unwrap(),
+            length:      block.read_u32().unwrap(),
+            block_count: block.read_u16().unwrap(),
+            block_index: block.read_u16().unwrap(),
+        };
+
+        // Check block header
+        let state = self.check_state(header);
+
+        // Write block data
+        state.write_block(header.block_index as usize, block);
+
+        Ok(())
+    }
+
+    fn check_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
+        match self.state {
+            None => self.init_state(header),
+            Some(ref mut state) => {
+                self.require_header_match(header, state.header);
+                Ok(state)
+            },
+        }
+    }
+
+    fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
+        // Validate claimed image length
+        if header.length > IMAGE_MAX_BYTES {
+            self.handler.on_err(InvalidImageLength {
+                actual: header.length,
+            });
+            return Err(());
+        }
+
+        // Validate claimed block count
+        let required_block_count = required_blocks(header.length);
+        if header.block_count != required_block_count {
+            self.handler.on_err(InvalidBlockCount {
+                actual:   header.block_count,
+                expected: required_block_count,
+            });
+            return Err(());
+        }
+
+        // Initialize decoder state
+        self.state = Some(BlockDecoderState {
+            header,
+            blocks_done: BoolArray::new(header.block_count as usize),
+            image:       vec![0; header.length as usize].into_boxed_slice(),
+        });
+
+        // Return mutable ref to state
+        Ok(self.state.as_mut().unwrap())
+    }
+
+    fn require_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
+        let mut matched = true;
+        if actual.version != expected.version {
+            self.handler.on_err();
+            return Some("version mismatch".into())
+            matched = false;
+        }
+        if actual.checksum != expected.checksum {
+            return Some("checksum mismatch".into())
+            matched = false;
+        }
+        if actual.length != expected.length {
+            return Some("length mismatch".into())
+            matched = false;
+        }
+        if actual.block_count != expected.block_count {
+            return Some("block count mismatch".into())
+            matched = false;
+        }
+        None
+    }
+}
+
+#[inline]
+fn required_blocks(len: u32) -> u16 {
+    // Ceiling of `len` divided by `BLOCK_DATA_LEN`
+    match len {
+        0 => 0,
+        n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
+    }
+}
+*/
+
+/*
+impl BlockHeader {
+    fn require_match(&self, other: &Self) -> Option<String> {
+        if self.version != other.version {
+            return Some("version mismatch".into())
+        }
+        if self.checksum != other.checksum {
+            return Some("checksum mismatch".into())
+        }
+        if self.length != other.length {
+            return Some("length mismatch".into())
+        }
+        if self.block_count != other.block_count {
+            return Some("block count mismatch".into())
+        }
+        None
+    }
+}
+*/
+
+/*
 impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -140,127 +301,48 @@ impl fmt::Display for BlockDecoderError {
         }
     }
 }
+*/
 
-impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
-    fn new(handler: H) -> Self {
-        Self { state: None, handler }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_state() -> BlockDecoderState {
+        BlockDecoderState::new(BlockHeader {
+            version:     0, // don't care
+            checksum:    0, // don't care
+            length:      0, // don't care
+            block_count: 4,
+            block_index: 0, // don't care
+        })
     }
 
-    fn consume_block(&mut self, mut block: &[u8]) -> bool {
-
-        if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
-            let err = InvalidBlockLength { actual: block.len() };
-            self.handler.on_err(err);
-            return false;
-        }
-
-        let header = BlockHeader {
-            version:     block.read_u32().unwrap(),
-            checksum:    block.read_u32().unwrap(),
-            length:      block.read_u32().unwrap(),
-            block_count: block.read_u16().unwrap(),
-            block_index: block.read_u16().unwrap(),
-        };
-
-        let state = self.check_state(header);
-
-        state.write_block(header.block_index as usize, block);
-
-        true
+    #[test]
+    fn block_range_() {
+        assert_eq!( block_range(0),            0 ..      256 );
+        assert_eq!( block_range(3),          768 ..     1024 );
+        assert_eq!( block_range(65535), 16776960 .. 16777216 );
     }
 
-    fn check_state(&mut self, header: BlockHeader) -> &mut BlockDecoderState {
-        match self.state {
-            Some(ref mut state) => {
-                state
-            },
-            None => {
-                let mut ok = true;
+    #[test]
+    fn new() {
+        let state = new_state();
+        let image = &[0; 1024][..];
 
-                // Validate claimed image length
-                if header.length > IMAGE_MAX_BYTES {
-                    self.handler.on_err(InvalidImageLength {
-                        actual: header.length,
-                    });
-                    ok = false;
-                }
-
-                // Validate claimed block count
-                let required_block_count = required_blocks(header.length);
-                if header.block_count != required_block_count {
-                    self.handler.on_err(InvalidBlockCount {
-                        actual:   header.block_count,
-                        expected: required_block_count,
-                    });
-                    ok = false;
-                }
-
-                // Initialize decoder state
-                self.state = Some(BlockDecoderState {
-                    header,
-                    blocks_done: BoolArray::new(header.block_count as usize),
-                    image:       vec![0; header.length as usize].into_boxed_slice(),
-                });
-
-                self.state.as_mut().unwrap()
-            },
-        }
+        assert_eq!(state.image(), image);
     }
 
-    fn require_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
-        let mut matched = true;
-        if actual.version != expected.version {
-            return Some("version mismatch".into())
-            matched = false;
-        }
-        if actual.checksum != expected.checksum {
-            return Some("checksum mismatch".into())
-            matched = false;
-        }
-        if actual.length != expected.length {
-            return Some("length mismatch".into())
-            matched = false;
-        }
-        if actual.block_count != expected.block_count {
-            return Some("block count mismatch".into())
-            matched = false;
-        }
-        None
-    }
-}
+    #[test]
+    fn new2() {
+        let mut state = new_state();
+        let     block = &    [0xA5;  256][..];
+        let     image = &mut [0x00; 1024][..];
 
-fn required_blocks(len: u32) -> u16 {
-    // Ceiling of `len` divided by `BLOCK_DATA_LEN`
-    match len {
-        0 => 0,
-        n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
-    }
-}
+        image[512..768].copy_from_slice(block);
 
-impl BlockHeader {
-    fn require_match(&self, other: &Self) -> Option<String> {
-        if self.version != other.version {
-            return Some("version mismatch".into())
-        }
-        if self.checksum != other.checksum {
-            return Some("checksum mismatch".into())
-        }
-        if self.length != other.length {
-            return Some("length mismatch".into())
-        }
-        if self.block_count != other.block_count {
-            return Some("block count mismatch".into())
-        }
-        None
-    }
-}
+        state.write_block(2, block);
 
-impl BlockDecoderState {
-    fn write_block(&mut self, index: usize, data: &[u8]) {
-        let start = index * BLOCK_DATA_LEN;
-        let end   = start + BLOCK_DATA_LEN;
-        self.image[start..end].copy_from_slice(data);
-        self.blocks_done.set(index);
+        assert_eq!(state.image(), image);
     }
 }
 
