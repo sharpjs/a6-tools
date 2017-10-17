@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn state_initial() {
         let state = new_state();
-        let image = &[0; 1024][..];
+        let image = &[0; 4 * BLOCK_DATA_LEN][..];
 
         assert_eq!(state.image(), image);
     }
@@ -335,8 +335,8 @@ mod tests {
     #[test]
     fn state_after_write_one() {
         let mut state = new_state();
-        let     block = &    [0xA5;  256][..];
-        let     image = &mut [0x00; 1024][..];
+        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
 
         image[512..768].copy_from_slice(block);
 
