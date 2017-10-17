@@ -319,13 +319,13 @@ mod tests {
 
     #[test]
     fn block_range_() {
-        assert_eq!( block_range(0),            0 ..      256 );
-        assert_eq!( block_range(3),          768 ..     1024 );
+        assert_eq!( block_range(    0),        0 ..      256 );
+        assert_eq!( block_range(    3),      768 ..     1024 );
         assert_eq!( block_range(65535), 16776960 .. 16777216 );
     }
 
     #[test]
-    fn new() {
+    fn state_initial() {
         let state = new_state();
         let image = &[0; 1024][..];
 
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn new2() {
+    fn state_after_write_one() {
         let mut state = new_state();
         let     block = &    [0xA5;  256][..];
         let     image = &mut [0x00; 1024][..];
