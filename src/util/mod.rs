@@ -15,7 +15,9 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 mod bitmap;
+mod handler;
 pub use self::bitmap::*;
+pub use self::handler::*;
 
 use std::cmp::min;
 
