@@ -52,6 +52,7 @@ impl BoolArray {
     }
 
     /// Sets the `bool` value at the given `index` to `false`.
+    /// Returns the previous value.
     pub fn clear(&mut self, index: usize) -> bool {
         let (index, mask) = split_index(index);
         let word = self.words[index];
@@ -60,6 +61,7 @@ impl BoolArray {
     }
 
     /// Sets the `bool` value at the given `index` to `true`.
+    /// Returns the previous value.
     pub fn set(&mut self, index: usize) -> bool {
         let (index, mask) = split_index(index);
         let word = self.words[index];
