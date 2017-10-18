@@ -87,7 +87,19 @@ impl BlockDecoderState {
     }
 
     #[inline]
-    fn image(&self) -> &[u8] { &*self.image }
+    fn image(&self) -> &[u8] {
+        &*self.image
+    }
+
+    #[inline]
+    fn has_block(&self, index: u16) -> bool {
+        self.blocks_done.get(index as usize)
+    }
+
+    #[inline]
+    fn first_missing_block_index(&self) -> Option<u16> {
+        self.blocks_done.first_false().map(|v| v as u16)
+    }
 
     fn write_block(&mut self, index: u16, data: &[u8]) {
         self.image[block_range(index)].copy_from_slice(data);
@@ -330,10 +342,30 @@ mod tests {
         let image = &[0; 4 * BLOCK_DATA_LEN][..];
 
         assert_eq!(state.image(), image);
+        assert_eq!(state.first_missing_block_index(), Some(0));
+        assert_eq!(state.first_missing_block_index(), Some(0));
     }
 
     #[test]
-    fn state_after_write_one() {
+    fn state_after_write_at0() {
+        let mut state = new_state();
+        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
+
+        image[0..256].copy_from_slice(block);
+
+        state.write_block(0, block);
+
+        assert_eq!(state.image(), image);
+        assert_eq!(state.has_block(0), true);
+        assert_eq!(state.has_block(1), false);
+        assert_eq!(state.has_block(2), false);
+        assert_eq!(state.has_block(3), false);
+        assert_eq!(state.first_missing_block_index(), Some(1));
+    }
+
+    #[test]
+    fn state_after_write_at2() {
         let mut state = new_state();
         let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
         let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
@@ -343,6 +375,35 @@ mod tests {
         state.write_block(2, block);
 
         assert_eq!(state.image(), image);
+        assert_eq!(state.has_block(0), false);
+        assert_eq!(state.has_block(1), false);
+        assert_eq!(state.has_block(2), true);
+        assert_eq!(state.has_block(3), false);
+        assert_eq!(state.first_missing_block_index(), Some(0));
+    }
+
+    #[test]
+    fn state_after_write_all() {
+        let mut state = new_state();
+        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
+
+        image[  0.. 256].copy_from_slice(block);
+        image[256.. 512].copy_from_slice(block);
+        image[512.. 768].copy_from_slice(block);
+        image[768..1024].copy_from_slice(block);
+
+        state.write_block(2, block); // out of order
+        state.write_block(0, block);
+        state.write_block(1, block);
+        state.write_block(3, block);
+
+        assert_eq!(state.image(), image);
+        assert_eq!(state.has_block(0), true);
+        assert_eq!(state.has_block(1), true);
+        assert_eq!(state.has_block(2), true);
+        assert_eq!(state.has_block(3), true);
+        assert_eq!(state.first_missing_block_index(), None);
     }
 }
 
