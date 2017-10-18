@@ -71,14 +71,13 @@ impl BoolArray {
 }
 
 #[inline]
-fn split_index(index: usize) -> (usize, usize) {
-    (
+fn split_index(index: usize) -> (usize, usize) {(
         // Index within words array
         index >> WORD_INDEX_SHIFT,
+
         // Mask for bit
         1 << (index & BIT_INDEX_MASK)
-    )
-}
+)}
 
 #[cfg(test)]
 mod tests {
