@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-mod bitmap;
+mod bool_array;
 mod handler;
-pub use self::bitmap::*;
+pub use self::bool_array::*;
 pub use self::handler::*;
 
 use std::cmp::min;
