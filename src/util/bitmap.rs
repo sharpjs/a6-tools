@@ -27,50 +27,76 @@ const BIT_INDEX_MASK: usize = (1 << WORD_INDEX_SHIFT) - 1;
 #[derive(Clone, Debug)]
 pub struct BoolArray {
     words: Box<[usize]>,
+    len:   usize,
 }
 
 impl BoolArray {
-    /// Creates a `BoolArray` with at least the given length.
-    /// The actual length will be `len` rounded up to the machine word size.
+    /// Creates a `BoolArray` with the given length.
     pub fn new(len: usize) -> Self {
-        let len = match split_index(len) {
-            (len, 1) => len,
-            (len, _) => len + 1,
+        // capacity is ceil(len / word_size)
+        let cap = match len {
+            0 => 0,
+            n => 1 + (n - 1 >> WORD_INDEX_SHIFT),
         };
-        Self { words: vec![0; len].into_boxed_slice() }
+        Self {
+            words: vec![0; cap].into_boxed_slice(),
+            len
+        }
     }
 
     /// Gets the length of the `BoolArray`.
+    #[inline]
     pub fn len(&self) -> usize {
-        self.words.len() << WORD_INDEX_SHIFT
+        self.len
     }
 
     /// Gets the `bool` value at the given `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
     pub fn get(&self, index: usize) -> bool {
+        assert!(index < self.len());
         let (index, mask) = split_index(index);
-        self.words[index] & mask != 0
-    }
-
-    /// Sets the `bool` value at the given `index` to `false`.
-    /// Returns the previous value.
-    pub fn clear(&mut self, index: usize) -> bool {
-        let (index, mask) = split_index(index);
-        let word = self.words[index];
-        self.words[index] = word & !mask;
+        let word = unsafe { self.words.get_unchecked(index) };
         word & mask != 0
     }
 
-    /// Sets the `bool` value at the given `index` to `true`.
-    /// Returns the previous value.
-    pub fn set(&mut self, index: usize) -> bool {
+    /// Sets the `bool` value at the given `index` to `false` and returns the
+    /// previous value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
+    pub fn clear(&mut self, index: usize) -> bool {
+        assert!(index < self.len());
         let (index, mask) = split_index(index);
-        let word = self.words[index];
-        self.words[index] = word | mask;
+        let slot = unsafe { self.words.get_unchecked_mut(index) };
+        let word = *slot;
+        *slot = word & !mask;
+        word & mask != 0
+    }
+
+    /// Sets the `bool` value at the given `index` to `true` and returns the
+    /// previous value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
+    pub fn set(&mut self, index: usize) -> bool {
+        assert!(index < self.len());
+        let (index, mask) = split_index(index);
+        let slot = unsafe { self.words.get_unchecked_mut(index) };
+        let word = *slot;
+        *slot = word | mask;
         word & mask != 0
     }
 
     /// Returns the index of the first `false` value, or `None` if all values
-    /// are `true`.
+    /// in the `BitArray` are `true`.
     pub fn first_false(&self) -> Option<usize> {
         let     max   = usize::max_value();
         let mut index = 0;
@@ -78,7 +104,11 @@ impl BoolArray {
         for &word in &*self.words {
             if word != max {
                 index += (!word).trailing_zeros() as usize;
-                return Some(index)
+                if index < self.len() {
+                    return Some(index)
+                } else {
+                    return None
+                }
             }
             index += 1 << WORD_INDEX_SHIFT;
         }
@@ -102,21 +132,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_nonword_size() {
-        let bitness = size_of::<usize>() * 8;
-
+    fn new() {
         let a = BoolArray::new(11);
 
-        assert_eq!(a.len(), bitness);
-    }
-
-    #[test]
-    fn new_word_size() {
-        let bitness = size_of::<usize>() * 8;
-
-        let a = BoolArray::new(bitness);
-
-        assert_eq!(a.len(), bitness);
+        assert_eq!(a.len(), 11);
     }
 
     #[test]
@@ -162,11 +181,7 @@ mod tests {
 
         let i = a.first_false();
 
-        // Ideally this should be the case.
-        //assert_eq!(i, None);
-
-        // This is true until it is fixed.
-        assert_eq!(i, Some(123));
+        assert_eq!(i, None);
     }
 
     #[test]
