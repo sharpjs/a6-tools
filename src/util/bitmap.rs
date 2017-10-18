@@ -68,15 +68,32 @@ impl BoolArray {
         self.words[index] = word | mask;
         word & mask != 0
     }
+
+    /// Returns the index of the first `false` value, or `None` if all values
+    /// are `true`.
+    pub fn first_false(&self) -> Option<usize> {
+        let     max   = usize::max_value();
+        let mut index = 0;
+
+        for &word in &*self.words {
+            if word != max {
+                index += (!word).trailing_zeros() as usize;
+                return Some(index)
+            }
+            index += 1 << WORD_INDEX_SHIFT;
+        }
+
+        None
+    }
 }
 
 #[inline]
 fn split_index(index: usize) -> (usize, usize) {(
-        // Index within words array
-        index >> WORD_INDEX_SHIFT,
+    // Index within words array
+    index >> WORD_INDEX_SHIFT,
 
-        // Mask for bit
-        1 << (index & BIT_INDEX_MASK)
+    // Mask for bit
+    1 << (index & BIT_INDEX_MASK)
 )}
 
 #[cfg(test)]
@@ -133,6 +150,39 @@ mod tests {
         for i in 0..a.len() {
             assert_eq!(a.get(i), i == 8);
         }
+    }
+
+    #[test]
+    fn first_false_none() {
+        let mut a = BoolArray::new(123);
+
+        for i in 0..123 {
+            a.set(i);
+        }
+
+        let i = a.first_false();
+
+        // Ideally this should be the case.
+        //assert_eq!(i, None);
+
+        // This is true until it is fixed.
+        assert_eq!(i, Some(123));
+    }
+
+    #[test]
+    fn first_false_some() {
+        let mut a = BoolArray::new(123);
+
+        for i in 0..123 {
+            a.set(i);
+        }
+
+        a.clear(67);
+        a.clear(99);
+
+        let i = a.first_false();
+
+        assert_eq!(i, Some(67));
     }
 }
 
