@@ -97,7 +97,7 @@ impl BlockDecoderState {
     }
 
     #[inline]
-    fn first_missing_block_index(&self) -> Option<u16> {
+    fn first_missing_block(&self) -> Option<u16> {
         self.blocks_done.first_false().map(|v| v as u16)
     }
 
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn block_range_() {
+    fn block_range_fn() {
         assert_eq!( block_range(    0),        0 ..      256 );
         assert_eq!( block_range(    3),      768 ..     1024 );
         assert_eq!( block_range(65535), 16776960 .. 16777216 );
@@ -342,8 +342,8 @@ mod tests {
         let image = &[0; 4 * BLOCK_DATA_LEN][..];
 
         assert_eq!(state.image(), image);
-        assert_eq!(state.first_missing_block_index(), Some(0));
-        assert_eq!(state.first_missing_block_index(), Some(0));
+        assert_eq!(state.first_missing_block(), Some(0));
+        assert_eq!(state.first_missing_block(), Some(0));
     }
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
         assert_eq!(state.has_block(1), false);
         assert_eq!(state.has_block(2), false);
         assert_eq!(state.has_block(3), false);
-        assert_eq!(state.first_missing_block_index(), Some(1));
+        assert_eq!(state.first_missing_block(), Some(1));
     }
 
     #[test]
@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(state.has_block(1), false);
         assert_eq!(state.has_block(2), true);
         assert_eq!(state.has_block(3), false);
-        assert_eq!(state.first_missing_block_index(), Some(0));
+        assert_eq!(state.first_missing_block(), Some(0));
     }
 
     #[test]
@@ -403,7 +403,7 @@ mod tests {
         assert_eq!(state.has_block(1), true);
         assert_eq!(state.has_block(2), true);
         assert_eq!(state.has_block(3), true);
-        assert_eq!(state.first_missing_block_index(), None);
+        assert_eq!(state.first_missing_block(), None);
     }
 }
 
