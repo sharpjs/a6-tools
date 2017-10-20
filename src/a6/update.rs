@@ -34,6 +34,16 @@ const BLOCK_REM_MASK:   usize = (1 << BLOCK_DIV_SHIFT) - 1;
 const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
 const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
 
+/// A portion of an OS/bootloader update image.
+#[repr(C, packed)]
+pub struct Block {
+    /// Metadata header.
+    pub header: BlockHeader,
+
+    /// Data payload.
+    pub data: [u8; BLOCK_DATA_LEN],
+}
+
 /// Metadata describing a bootloader/OS update block.
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
@@ -54,15 +64,25 @@ pub struct BlockHeader {
     pub block_index: u16,
 }
 
-/// A portion of an OS/bootloader update image.
-#[repr(C, packed)]
-pub struct Block {
-    /// Metadata header.
-    pub header: BlockHeader,
-
-    /// Data payload.
-    pub data: [u8; BLOCK_DATA_LEN],
+/*
+impl BlockHeader {
+    fn validate(&self, other: &Self) -> Result<(), ()> {
+        if self.version != other.version {
+            return Some("version mismatch".into())
+        }
+        if self.checksum != other.checksum {
+            return Some("checksum mismatch".into())
+        }
+        if self.length != other.length {
+            return Some("length mismatch".into())
+        }
+        if self.block_count != other.block_count {
+            return Some("block count mismatch".into())
+        }
+        Ok(())
+    }
 }
+*/
 
 #[derive(Clone)]
 struct BlockDecoderState {
@@ -246,26 +266,6 @@ fn required_blocks(len: u32) -> u16 {
     match len {
         0 => 0,
         n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
-    }
-}
-*/
-
-/*
-impl BlockHeader {
-    fn require_match(&self, other: &Self) -> Option<String> {
-        if self.version != other.version {
-            return Some("version mismatch".into())
-        }
-        if self.checksum != other.checksum {
-            return Some("checksum mismatch".into())
-        }
-        if self.length != other.length {
-            return Some("length mismatch".into())
-        }
-        if self.block_count != other.block_count {
-            return Some("block count mismatch".into())
-        }
-        None
     }
 }
 */
