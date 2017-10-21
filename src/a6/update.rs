@@ -21,7 +21,7 @@ use std::ops::Range;
 use io::*;
 use util::{BoolArray, Handler};
 
-//use self::BlockDecoderError::*;
+use self::BlockDecoderError::*;
 
 const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
 const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
@@ -64,25 +64,51 @@ pub struct BlockHeader {
     pub block_index: u16,
 }
 
-/*
 impl BlockHeader {
-    fn validate(&self, other: &Self) -> Result<(), ()> {
+    fn validate_match<H>(&self, other: &Self, handler: H) -> bool
+        where H: Handler<BlockDecoderError>
+    {
+        let mut ok = true;
+
         if self.version != other.version {
-            return Some("version mismatch".into())
+            handler.on(&InconsistentVersion {
+                actual:   self.version,
+                expected: other.version,
+                index:    self.block_index,
+            });
+            ok = false;
         }
+
         if self.checksum != other.checksum {
-            return Some("checksum mismatch".into())
+            handler.on(&InconsistentChecksum {
+                actual:   self.checksum,
+                expected: other.checksum,
+                index:    self.block_index,
+            });
+            ok = false;
         }
+
         if self.length != other.length {
-            return Some("length mismatch".into())
+            handler.on(&InconsistentImageLength {
+                actual:   self.length,
+                expected: other.length,
+                index:    self.block_index,
+            });
+            ok = false;
         }
+
         if self.block_count != other.block_count {
-            return Some("block count mismatch".into())
+            handler.on(&InconsistentBlockCount {
+                actual:   self.block_count,
+                expected: other.block_count,
+                index:    self.block_index,
+            });
+            ok = false;
         }
-        Ok(())
+
+        ok
     }
 }
-*/
 
 #[derive(Clone)]
 struct BlockDecoderState {
@@ -144,7 +170,6 @@ pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
 }
 */
 
-/*
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BlockDecoderError {
     InvalidBlockLength      { actual: usize                          },
@@ -157,7 +182,6 @@ pub enum BlockDecoderError {
     ChecksumMismatch        { actual: u32, expected: u32             },
     MissingBlock            { count:  u16,                index: u16 },
 }
-*/
 
 /*
 impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
