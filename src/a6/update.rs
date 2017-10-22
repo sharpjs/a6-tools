@@ -34,16 +34,6 @@ const BLOCK_REM_MASK:   usize = (1 << BLOCK_DIV_SHIFT) - 1;
 const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
 const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
 
-/// A portion of an OS/bootloader update image.
-#[repr(C, packed)]
-pub struct Block {
-    /// Metadata header.
-    pub header: BlockHeader,
-
-    /// Data payload.
-    pub data: [u8; BLOCK_DATA_LEN],
-}
-
 /// Metadata describing a bootloader/OS update block.
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
@@ -64,50 +54,14 @@ pub struct BlockHeader {
     pub block_index: u16,
 }
 
-impl BlockHeader {
-    fn validate_match<H>(&self, other: &Self, handler: H) -> bool
-        where H: Handler<BlockDecoderError>
-    {
-        let mut ok = true;
+/// A portion of an OS/bootloader update image.
+#[repr(C, packed)]
+pub struct Block {
+    /// Metadata header.
+    pub header: BlockHeader,
 
-        if self.version != other.version {
-            handler.on(&InconsistentVersion {
-                actual:   self.version,
-                expected: other.version,
-                index:    self.block_index,
-            });
-            ok = false;
-        }
-
-        if self.checksum != other.checksum {
-            handler.on(&InconsistentChecksum {
-                actual:   self.checksum,
-                expected: other.checksum,
-                index:    self.block_index,
-            });
-            ok = false;
-        }
-
-        if self.length != other.length {
-            handler.on(&InconsistentImageLength {
-                actual:   self.length,
-                expected: other.length,
-                index:    self.block_index,
-            });
-            ok = false;
-        }
-
-        if self.block_count != other.block_count {
-            handler.on(&InconsistentBlockCount {
-                actual:   self.block_count,
-                expected: other.block_count,
-                index:    self.block_index,
-            });
-            ok = false;
-        }
-
-        ok
-    }
+    /// Data payload.
+    pub data: [u8; BLOCK_DATA_LEN],
 }
 
 #[derive(Clone)]
@@ -120,6 +74,33 @@ struct BlockDecoderState {
 
     /// Buffer for image in progress.
     image: Box<[u8]>,
+}
+
+/// Constructs a binary image from A6 OS/bootloader update blocks.
+#[derive(Clone)]
+pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
+    /// Current state, populated on first block.
+    state: Option<BlockDecoderState>,
+
+    /// Maximum image size.
+    capacity: u32,
+
+    /// Handler for error conditions.
+    handler: H,
+}
+
+/// Error conditions reportable by `BlockDecoder`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlockDecoderError {
+    InvalidBlockLength      { actual: usize                          },
+    InvalidImageLength      { actual: u32                            },
+    InvalidBlockCount       { actual: u16, expected: u16             },
+    InconsistentVersion     { actual: u32, expected: u32, index: u16 },
+    InconsistentChecksum    { actual: u32, expected: u32, index: u16 },
+    InconsistentImageLength { actual: u32, expected: u32, index: u16 },
+    InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
+    ChecksumMismatch        { actual: u32, expected: u32             },
+    MissingBlock            { count:  u16,                index: u16 },
 }
 
 impl BlockDecoderState {
@@ -161,30 +142,8 @@ fn block_range(index: u16) -> Range<usize> {
     start..end
 }
 
+impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 /*
-#[derive(Clone)]
-pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
-    state:    Option<BlockDecoderState>,
-    capacity: u32,
-    handler:  H,
-}
-*/
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BlockDecoderError {
-    InvalidBlockLength      { actual: usize                          },
-    InvalidImageLength      { actual: u32                            },
-    InvalidBlockCount       { actual: u16, expected: u16             },
-    InconsistentVersion     { actual: u32, expected: u32, index: u16 },
-    InconsistentChecksum    { actual: u32, expected: u32, index: u16 },
-    InconsistentImageLength { actual: u32, expected: u32, index: u16 },
-    InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
-    ChecksumMismatch        { actual: u32, expected: u32             },
-    MissingBlock            { count:  u16,                index: u16 },
-}
-
-/*
-impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
     /// Creates a `BlockDecoder` with the given `capacity` and `handler`.
     pub fn new(capacity: u32, handler: H) -> Self {
         if capacity > IMAGE_MAX_BYTES {
@@ -260,30 +219,52 @@ impl<H> BlockDecoder<H> where H: BlockDecoderHandler {
         // Return mutable ref to state
         Ok(self.state.as_mut().unwrap())
     }
+*/
 
-    fn require_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
-        let mut matched = true;
+    fn check_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
+        let mut ok = true;
+
         if actual.version != expected.version {
-            self.handler.on_err();
-            return Some("version mismatch".into())
-            matched = false;
+            self.handler.on(&InconsistentVersion {
+                actual:   actual   .version,
+                expected: expected .version,
+                index:    actual   .block_index,
+            });
+            ok = false;
         }
+
         if actual.checksum != expected.checksum {
-            return Some("checksum mismatch".into())
-            matched = false;
+            self.handler.on(&InconsistentChecksum {
+                actual:   actual   .checksum,
+                expected: expected .checksum,
+                index:    actual   .block_index,
+            });
+            ok = false;
         }
+
         if actual.length != expected.length {
-            return Some("length mismatch".into())
-            matched = false;
+            self.handler.on(&InconsistentImageLength {
+                actual:   actual   .length,
+                expected: expected .length,
+                index:    actual   .block_index,
+            });
+            ok = false;
         }
+
         if actual.block_count != expected.block_count {
-            return Some("block count mismatch".into())
-            matched = false;
+            self.handler.on(&InconsistentBlockCount {
+                actual:   actual   .block_count,
+                expected: expected .block_count,
+                index:    actual   .block_index,
+            });
+            ok = false;
         }
-        None
+
+        ok
     }
 }
 
+/*
 #[inline]
 fn required_blocks(len: u32) -> u16 {
     // Ceiling of `len` divided by `BLOCK_DATA_LEN`
@@ -292,9 +273,7 @@ fn required_blocks(len: u32) -> u16 {
         n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
     }
 }
-*/
 
-/*
 impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
