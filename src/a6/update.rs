@@ -191,21 +191,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 
     fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
-        // Validate claimed image length
-        if header.length > IMAGE_MAX_BYTES {
-            self.handler.on_err(InvalidImageLength {
-                actual: header.length,
-            });
-            return Err(());
-        }
-
-        // Validate claimed block count
-        let required_block_count = required_blocks(header.length);
-        if header.block_count != required_block_count {
-            self.handler.on_err(InvalidBlockCount {
-                actual:   header.block_count,
-                expected: required_block_count,
-            });
+        if !self.check_header_first(&header) {
             return Err(());
         }
 
@@ -221,6 +207,31 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 */
 
+    /// Verifies that properties of the given initial `header` are valid.
+    fn check_header_first(&self, header: &BlockHeader) -> bool {
+        // Validate claimed image length
+        if header.length > IMAGE_MAX_BYTES {
+            self.handler.on(&InvalidImageLength {
+                actual: header.length,
+            });
+            return false;
+        }
+
+        // Validate claimed block count
+        let expected_block_count = required_blocks(header.length);
+        if header.block_count != expected_block_count {
+            self.handler.on(&InvalidBlockCount {
+                actual:   header.block_count,
+                expected: expected_block_count,
+            });
+            return false;
+        }
+
+        return true;
+    }
+
+    /// Verifies that properties of the given `actual` header match the given
+    /// `expected` header.
     fn check_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
         let mut ok = true;
 
@@ -264,7 +275,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 }
 
-/*
 #[inline]
 fn required_blocks(len: u32) -> u16 {
     // Ceiling of `len` divided by `BLOCK_DATA_LEN`
@@ -274,6 +284,7 @@ fn required_blocks(len: u32) -> u16 {
     }
 }
 
+/*
 impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
