@@ -189,8 +189,11 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
             },
         }
     }
+*/
 
+    /// Initializes decoder state using the given `header`.
     fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
+        // Validate header
         if !self.check_header_first(&header) {
             return Err(());
         }
@@ -205,7 +208,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         // Return mutable ref to state
         Ok(self.state.as_mut().unwrap())
     }
-*/
 
     /// Verifies that properties of the given initial `header` are valid.
     fn check_header_first(&self, header: &BlockHeader) -> bool {
@@ -216,6 +218,9 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
             });
             return false;
         }
+
+        // Cannot fall through here, because `header.length` is potentially out
+        // of the limited domain of required_blocks().
 
         // Validate claimed block count
         let expected_block_count = required_blocks(header.length);
