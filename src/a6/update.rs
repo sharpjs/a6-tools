@@ -162,7 +162,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     /// Initializes decoder state using the given `header`.
     fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         // Validate header
-        header.check_length(&self.handler)?;
+        header.check_len(&self.handler)?;
 
         // Initialize decoder state
         self.state = Some(BlockDecoderState {
@@ -178,7 +178,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
 impl BlockHeader {
     /// Verifies that properties of the given initial `header` are valid.
-    fn check_length<H>(&self, handler: &H) -> Result<(), ()>
+    fn check_len<H>(&self, handler: &H) -> Result<(), ()>
         where H: Handler<BlockDecoderError>
     {
         // Validate claimed image length
