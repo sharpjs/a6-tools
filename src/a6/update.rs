@@ -142,6 +142,41 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         Ok(())
     }
 
+    /// Validates and returns the decoded image.
+    pub fn image(&self) -> Result<&[u8], ()> {
+        // Verify that first block was decoded
+        let state = match self.state {
+            None => {
+                self.handler.on(&MissingBlock {
+                    count: 1, // TODO: Actual count?
+                    index: 0,
+                })?;
+                return Ok(&[])
+            },
+            Some(ref state) => state,
+        };
+
+        // Check for missing blocks
+        if let Some(n) = state.first_missing_block() {
+            self.handler.on(&MissingBlock {
+                count: 1, // TODO: Actual count?
+                index: n,
+            })?;
+        }
+
+        // Validate checksum
+        let image = &state.image[..state.header.length as usize];
+        let sum   = checksum(image);
+        if sum != state.header.checksum {
+            self.handler.on(&ChecksumMismatch {
+                actual:   sum,
+                expected: state.header.checksum,
+            })?;
+        }
+
+        Ok(image)
+    }
+
     fn check_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         match self.state {
             None => {
@@ -259,6 +294,14 @@ fn block_count_for(len: u32) -> u16 {
         0 => 0,
         n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
     }
+}
+
+fn checksum(bytes: &[u8]) -> u32 {
+    let mut sum = 0u32;
+    for &b in bytes {
+        sum = sum.wrapping_add(b as u32);
+    }
+    sum
 }
 
 impl BlockDecoderState {
