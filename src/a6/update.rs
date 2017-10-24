@@ -150,7 +150,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
             },
             Some(ref mut state) => {
                 // Check that block's header matches the first block's header
-                if check_header_match(&header, &state.header, &self.handler) {
+                if let Ok(_) = check_header_match(&header, &state.header, &self.handler) {
                     Ok(state)
                 } else {
                     Err(())
@@ -162,9 +162,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     /// Initializes decoder state using the given `header`.
     fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         // Validate header
-        if !check_header_first(&header, &self.handler) {
-            return Err(());
-        }
+        check_header_first(&header, &self.handler)?;
 
         // Initialize decoder state
         self.state = Some(BlockDecoderState {
@@ -188,7 +186,7 @@ fn required_blocks(len: u32) -> u16 {
 }
 
 /// Verifies that properties of the given initial `header` are valid.
-fn check_header_first<H>(header: &BlockHeader, handler: &H) -> bool
+fn check_header_first<H>(header: &BlockHeader, handler: &H) -> Result<(), ()>
     where H: Handler<BlockDecoderError>
 {
     // Validate claimed image length
@@ -196,7 +194,7 @@ fn check_header_first<H>(header: &BlockHeader, handler: &H) -> bool
         handler.on(&InvalidImageLength {
             actual: header.length,
         });
-        return false;
+        return Err(());
     }
 
     // Cannot fall through here, because `header.length` is potentially out
@@ -209,26 +207,26 @@ fn check_header_first<H>(header: &BlockHeader, handler: &H) -> bool
             actual:   header.block_count,
             expected: expected_block_count,
         });
-        return false;
+        return Err(());
     }
 
-    return true;
+    return Ok(());
 }
 
 /// Verifies that properties of the given `actual` header match the given
 /// `expected` header.
-fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: &H) -> bool
+fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: &H) -> Result<(), ()>
     where H: Handler<BlockDecoderError>
 {
-    let mut ok = true;
+    let mut result = Ok(());
 
     if actual.version != expected.version {
         handler.on(&InconsistentVersion {
             actual:   actual   .version,
             expected: expected .version,
             index:    actual   .block_index,
-        });
-        ok = false;
+        })?;
+        result = Err(());
     }
 
     if actual.checksum != expected.checksum {
@@ -236,8 +234,8 @@ fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: 
             actual:   actual   .checksum,
             expected: expected .checksum,
             index:    actual   .block_index,
-        });
-        ok = false;
+        })?;
+        result = Err(());
     }
 
     if actual.length != expected.length {
@@ -245,8 +243,8 @@ fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: 
             actual:   actual   .length,
             expected: expected .length,
             index:    actual   .block_index,
-        });
-        ok = false;
+        })?;
+        result = Err(());
     }
 
     if actual.block_count != expected.block_count {
@@ -254,11 +252,11 @@ fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: 
             actual:   actual   .block_count,
             expected: expected .block_count,
             index:    actual   .block_index,
-        });
-        ok = false;
+        })?;
+        result = Err(());
     }
 
-    ok
+    result
 }
 
 impl BlockDecoderState {
