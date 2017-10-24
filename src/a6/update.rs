@@ -176,15 +176,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 }
 
-#[inline]
-fn required_blocks(len: u32) -> u16 {
-    // Ceiling of `len` divided by `BLOCK_DATA_LEN`
-    match len {
-        0 => 0,
-        n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
-    }
-}
-
 impl BlockHeader {
     /// Verifies that properties of the given initial `header` are valid.
     fn check_length<H>(&self, handler: &H) -> Result<(), ()>
@@ -258,6 +249,15 @@ impl BlockHeader {
         }
 
         result
+    }
+}
+
+#[inline]
+fn required_blocks(len: u32) -> u16 {
+    // Ceiling of `len` divided by `BLOCK_DATA_LEN`
+    match len {
+        0 => 0,
+        n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
     }
 }
 
