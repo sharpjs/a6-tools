@@ -143,15 +143,16 @@ fn block_range(index: u16) -> Range<usize> {
 }
 
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
-/*
     /// Creates a `BlockDecoder` with the given `capacity` and `handler`.
     pub fn new(capacity: u32, handler: H) -> Self {
         if capacity > IMAGE_MAX_BYTES {
-            panic!("Capacity {} is beyond the supported range.", capacity);
+            panic!(
+                "Capacity {} is beyond the supported range of 0 to {} bytes.",
+                capacity, IMAGE_MAX_BYTES
+            );
         }
         Self { state: None, capacity, handler }
     }
-*/
 
     /// Decodes the given `block`, adding its data to the image in progress.
     pub fn decode_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
