@@ -179,22 +179,29 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
         Ok(())
     }
+*/
 
     fn check_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         match self.state {
-            None => self.init_state(header),
+            None => {
+                // Initialize state from first block's header
+                self.init_state(header)
+            },
             Some(ref mut state) => {
-                self.require_header_match(header, state.header);
-                Ok(state)
+                // Check that block's header matches the first block's header
+                if check_header_match(&header, &state.header, &self.handler) {
+                    Ok(state)
+                } else {
+                    Err(())
+                }
             },
         }
     }
-*/
 
     /// Initializes decoder state using the given `header`.
     fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         // Validate header
-        if !self.check_header_first(&header) {
+        if !check_header_first(&header, &self.handler) {
             return Err(());
         }
 
@@ -208,76 +215,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         // Return mutable ref to state
         Ok(self.state.as_mut().unwrap())
     }
-
-    /// Verifies that properties of the given initial `header` are valid.
-    fn check_header_first(&self, header: &BlockHeader) -> bool {
-        // Validate claimed image length
-        if header.length > IMAGE_MAX_BYTES {
-            self.handler.on(&InvalidImageLength {
-                actual: header.length,
-            });
-            return false;
-        }
-
-        // Cannot fall through here, because `header.length` is potentially out
-        // of the limited domain of required_blocks().
-
-        // Validate claimed block count
-        let expected_block_count = required_blocks(header.length);
-        if header.block_count != expected_block_count {
-            self.handler.on(&InvalidBlockCount {
-                actual:   header.block_count,
-                expected: expected_block_count,
-            });
-            return false;
-        }
-
-        return true;
-    }
-
-    /// Verifies that properties of the given `actual` header match the given
-    /// `expected` header.
-    fn check_header_match(&self, actual: &BlockHeader, expected: &BlockHeader) -> bool {
-        let mut ok = true;
-
-        if actual.version != expected.version {
-            self.handler.on(&InconsistentVersion {
-                actual:   actual   .version,
-                expected: expected .version,
-                index:    actual   .block_index,
-            });
-            ok = false;
-        }
-
-        if actual.checksum != expected.checksum {
-            self.handler.on(&InconsistentChecksum {
-                actual:   actual   .checksum,
-                expected: expected .checksum,
-                index:    actual   .block_index,
-            });
-            ok = false;
-        }
-
-        if actual.length != expected.length {
-            self.handler.on(&InconsistentImageLength {
-                actual:   actual   .length,
-                expected: expected .length,
-                index:    actual   .block_index,
-            });
-            ok = false;
-        }
-
-        if actual.block_count != expected.block_count {
-            self.handler.on(&InconsistentBlockCount {
-                actual:   actual   .block_count,
-                expected: expected .block_count,
-                index:    actual   .block_index,
-            });
-            ok = false;
-        }
-
-        ok
-    }
 }
 
 #[inline]
@@ -287,6 +224,80 @@ fn required_blocks(len: u32) -> u16 {
         0 => 0,
         n => 1 + (n - 1 >> BLOCK_DIV_SHIFT) as u16
     }
+}
+
+/// Verifies that properties of the given initial `header` are valid.
+fn check_header_first<H>(header: &BlockHeader, handler: &H) -> bool
+    where H: Handler<BlockDecoderError>
+{
+    // Validate claimed image length
+    if header.length > IMAGE_MAX_BYTES {
+        handler.on(&InvalidImageLength {
+            actual: header.length,
+        });
+        return false;
+    }
+
+    // Cannot fall through here, because `header.length` is potentially out
+    // of the limited domain of required_blocks().
+
+    // Validate claimed block count
+    let expected_block_count = required_blocks(header.length);
+    if header.block_count != expected_block_count {
+        handler.on(&InvalidBlockCount {
+            actual:   header.block_count,
+            expected: expected_block_count,
+        });
+        return false;
+    }
+
+    return true;
+}
+
+/// Verifies that properties of the given `actual` header match the given
+/// `expected` header.
+fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: &H) -> bool
+    where H: Handler<BlockDecoderError>
+{
+    let mut ok = true;
+
+    if actual.version != expected.version {
+        handler.on(&InconsistentVersion {
+            actual:   actual   .version,
+            expected: expected .version,
+            index:    actual   .block_index,
+        });
+        ok = false;
+    }
+
+    if actual.checksum != expected.checksum {
+        handler.on(&InconsistentChecksum {
+            actual:   actual   .checksum,
+            expected: expected .checksum,
+            index:    actual   .block_index,
+        });
+        ok = false;
+    }
+
+    if actual.length != expected.length {
+        handler.on(&InconsistentImageLength {
+            actual:   actual   .length,
+            expected: expected .length,
+            index:    actual   .block_index,
+        });
+        ok = false;
+    }
+
+    if actual.block_count != expected.block_count {
+        handler.on(&InconsistentBlockCount {
+            actual:   actual   .block_count,
+            expected: expected .block_count,
+            index:    actual   .block_index,
+        });
+        ok = false;
+    }
+
+    ok
 }
 
 /*
