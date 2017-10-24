@@ -103,45 +103,6 @@ pub enum BlockDecoderError {
     MissingBlock            { count:  u16,                index: u16 },
 }
 
-impl BlockDecoderState {
-    fn new(header: BlockHeader) -> Self {
-        let n = header.block_count as usize;
-        Self {
-            header,
-            blocks_done: BoolArray::new(n),
-            image:       vec![0; n << BLOCK_DIV_SHIFT].into_boxed_slice(),
-        }
-    }
-
-    #[inline]
-    fn image(&self) -> &[u8] {
-        &*self.image
-    }
-
-    #[inline]
-    fn has_block(&self, index: u16) -> bool {
-        self.blocks_done.get(index as usize)
-    }
-
-    #[inline]
-    fn first_missing_block(&self) -> Option<u16> {
-        self.blocks_done.first_false().map(|v| v as u16)
-    }
-
-    fn write_block(&mut self, index: u16, data: &[u8]) {
-        self.image[block_range(index)].copy_from_slice(data);
-        self.blocks_done.set(index as usize);
-    }
-}
-
-#[inline]
-fn block_range(index: u16) -> Range<usize> {
-    let index = index as usize;
-    let start = index << BLOCK_DIV_SHIFT;
-    let end   = start  + BLOCK_DATA_LEN;
-    start..end
-}
-
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     /// Creates a `BlockDecoder` with the given `capacity` and `handler`.
     pub fn new(capacity: u32, handler: H) -> Self {
@@ -298,6 +259,45 @@ fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: 
     }
 
     ok
+}
+
+impl BlockDecoderState {
+    fn new(header: BlockHeader) -> Self {
+        let n = header.block_count as usize;
+        Self {
+            header,
+            blocks_done: BoolArray::new(n),
+            image:       vec![0; n << BLOCK_DIV_SHIFT].into_boxed_slice(),
+        }
+    }
+
+    #[inline]
+    fn image(&self) -> &[u8] {
+        &*self.image
+    }
+
+    #[inline]
+    fn has_block(&self, index: u16) -> bool {
+        self.blocks_done.get(index as usize)
+    }
+
+    #[inline]
+    fn first_missing_block(&self) -> Option<u16> {
+        self.blocks_done.first_false().map(|v| v as u16)
+    }
+
+    fn write_block(&mut self, index: u16, data: &[u8]) {
+        self.image[block_range(index)].copy_from_slice(data);
+        self.blocks_done.set(index as usize);
+    }
+}
+
+#[inline]
+fn block_range(index: u16) -> Range<usize> {
+    let index = index as usize;
+    let start = index << BLOCK_DIV_SHIFT;
+    let end   = start  + BLOCK_DATA_LEN;
+    start..end
 }
 
 impl fmt::Display for BlockDecoderError {
