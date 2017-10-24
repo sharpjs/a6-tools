@@ -151,18 +151,19 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         }
         Self { state: None, capacity, handler }
     }
+*/
 
     /// Decodes the given `block`, adding its data to the image in progress.
     pub fn decode_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
         // Validate block length
         if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
-            self.handler.on_err(InvalidBlockLength {
+            self.handler.on(&InvalidBlockLength {
                 actual: block.len()
             });
             return Err(());
         }
 
-        // Read block header
+        // Read block header, leaving `block` to contain just the data
         let header = BlockHeader {
             version:     block.read_u32().unwrap(),
             checksum:    block.read_u32().unwrap(),
@@ -172,14 +173,12 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         };
 
         // Check block header
-        let state = self.check_state(header);
+        let state = self.check_state(header)?;
 
         // Write block data
-        state.write_block(header.block_index as usize, block);
-
+        state.write_block(header.block_index, block);
         Ok(())
     }
-*/
 
     fn check_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
         match self.state {
