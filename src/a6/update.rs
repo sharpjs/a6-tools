@@ -190,10 +190,10 @@ impl BlockHeader {
         }
 
         // Cannot fall through here, because `self.length` is potentially out
-        // of the limited domain of required_blocks().
+        // of the limited domain of block_count_for().
 
         // Validate claimed block count
-        let bc = required_blocks(self.length);
+        let bc = block_count_for(self.length);
         if self.block_count != bc {
             handler.on(&InvalidBlockCount {
                 actual:   self.block_count,
@@ -253,7 +253,7 @@ impl BlockHeader {
 }
 
 #[inline]
-fn required_blocks(len: u32) -> u16 {
+fn block_count_for(len: u32) -> u16 {
     // Ceiling of `len` divided by `BLOCK_DATA_LEN`
     match len {
         0 => 0,
