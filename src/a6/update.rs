@@ -177,7 +177,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 }
 
 impl BlockHeader {
-    /// Verifies that properties of the given initial `header` are valid.
+    /// Verifies that the header specifies a valid image length and block count.
     fn check_len<H>(&self, handler: &H) -> Result<(), ()>
         where H: Handler<BlockDecoderError>
     {
@@ -205,8 +205,8 @@ impl BlockHeader {
         return Ok(());
     }
 
-    /// Verifies that properties of the given `self` header match the given
-    /// `other` header.
+    /// Verifies that the header's fields (except `block_index`) match those of
+    /// the given `other` header.
     fn check_match<H>(&self, other: &BlockHeader, handler: &H) -> Result<(), ()>
         where H: Handler<BlockDecoderError>
     {
