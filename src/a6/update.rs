@@ -300,7 +300,6 @@ fn check_header_match<H>(actual: &BlockHeader, expected: &BlockHeader, handler: 
     ok
 }
 
-/*
 impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -343,7 +342,6 @@ impl fmt::Display for BlockDecoderError {
         }
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
