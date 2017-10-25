@@ -165,7 +165,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         }
 
         // Validate checksum
-        let image = &state.image[..state.header.length as usize];
+        let image = state.image();
         let sum   = checksum(image);
         if sum != state.header.checksum {
             self.handler.on(&ChecksumMismatch {
@@ -316,7 +316,7 @@ impl BlockDecoderState {
 
     #[inline]
     fn image(&self) -> &[u8] {
-        &*self.image
+        &self.image[..self.header.length as usize]
     }
 
     #[inline]
@@ -392,11 +392,11 @@ mod tests {
 
     fn new_state() -> BlockDecoderState {
         BlockDecoderState::new(BlockHeader {
-            version:     0, // don't care
-            checksum:    0, // don't care
-            length:      0, // don't care
-            block_count: 4,
-            block_index: 0, // don't care
+            version:        0, // don't care
+            checksum:       0, // don't care
+            length:      1000, // \_ Test with image not using
+            block_count:    4, // /    all of final block.
+            block_index:    0, // don't care
         })
     }
 
@@ -410,18 +410,21 @@ mod tests {
     #[test]
     fn state_initial() {
         let state = new_state();
-        let image = &[0; 4 * BLOCK_DATA_LEN][..];
+        let image = &[0; 1000][..];
 
         assert_eq!(state.image(), image);
-        assert_eq!(state.first_missing_block(), Some(0));
+        assert_eq!(state.has_block(0), false);
+        assert_eq!(state.has_block(1), false);
+        assert_eq!(state.has_block(2), false);
+        assert_eq!(state.has_block(3), false);
         assert_eq!(state.first_missing_block(), Some(0));
     }
 
     #[test]
     fn state_after_write_at0() {
         let mut state = new_state();
-        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
-        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
+        let     block = &    [0xA5; BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00;           1000][..];
 
         image[0..256].copy_from_slice(block);
 
@@ -438,8 +441,8 @@ mod tests {
     #[test]
     fn state_after_write_at2() {
         let mut state = new_state();
-        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
-        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
+        let     block = &    [0xA5; BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00;           1000][..];
 
         image[512..768].copy_from_slice(block);
 
@@ -456,13 +459,13 @@ mod tests {
     #[test]
     fn state_after_write_all() {
         let mut state = new_state();
-        let     block = &    [0xA5;     BLOCK_DATA_LEN][..];
-        let     image = &mut [0x00; 4 * BLOCK_DATA_LEN][..];
+        let     block = &    [0xA5; BLOCK_DATA_LEN][..];
+        let     image = &mut [0x00;           1000][..];
 
         image[  0.. 256].copy_from_slice(block);
         image[256.. 512].copy_from_slice(block);
         image[512.. 768].copy_from_slice(block);
-        image[768..1024].copy_from_slice(block);
+        image[768..1000].copy_from_slice(&block[..(1000-768)]);
 
         state.write_block(2, block); // out of order
         state.write_block(0, block);
