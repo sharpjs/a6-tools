@@ -108,7 +108,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     pub fn new(capacity: u32, handler: H) -> Self {
         if capacity > IMAGE_MAX_BYTES {
             panic!(
-                "Capacity {} is beyond the supported range of 0 to {} bytes.",
+                "Capacity {} is beyond the supported maximum of {} bytes.",
                 capacity, IMAGE_MAX_BYTES
             );
         }
