@@ -284,6 +284,20 @@ impl BlockHeader {
 
         result
     }
+
+    /// Verifies that the header specifies a valid block index.
+    fn check_block_index<H>(&self, handler: &H) -> Result<(), ()>
+        where H: Handler<BlockDecoderError>
+    {
+        if self.block_index >= self.block_count {
+            handler.on(&InvalidBlockIndex {
+                actual: self.block_index,
+                max:    self.block_count.saturating_sub(1),
+            });
+        }
+
+        Ok(())
+    }
 }
 
 #[inline]
