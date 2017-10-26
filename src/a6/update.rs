@@ -123,8 +123,11 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
             self.handler.on(&InvalidBlockLength {
                 actual: block.len()
-            });
-            return Err(());
+            })?;
+            block = match block.get(..BLOCK_HEAD_LEN + BLOCK_DATA_LEN) {
+                Some(b) => b,
+                None    => return Ok(()),
+            };
         }
 
         // Read block header, leaving `block` to contain just the data
