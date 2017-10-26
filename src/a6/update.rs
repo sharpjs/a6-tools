@@ -94,6 +94,7 @@ pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
 pub enum BlockDecoderError {
     InvalidBlockLength      { actual: usize                          },
     InvalidImageLength      { actual: u32                            },
+    InvalidBlockIndex       { actual: u16, max: u16                  },
     InvalidBlockCount       { actual: u16, expected: u16             },
     InconsistentVersion     { actual: u32, expected: u32, index: u16 },
     InconsistentChecksum    { actual: u32, expected: u32, index: u16 },
@@ -101,6 +102,7 @@ pub enum BlockDecoderError {
     InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
     ChecksumMismatch        { actual: u32, expected: u32             },
     MissingBlock            { count:  u16,                index: u16 },
+    DuplicateBlock          {                             index: u16 },
 }
 
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
@@ -358,6 +360,10 @@ impl fmt::Display for BlockDecoderError {
                 f, "Invalid block count: {} block(s). The image length requires {} blocks.",
                 actual, expected,
             ),
+            InvalidBlockIndex { actual, max } => write!(
+                f, "Invalid block index: {}. The maximum for this image is {}.",
+                actual, max,
+            ),
             InconsistentVersion { actual, expected, index } => write!(
                 f, "Block {}: inconsistent version: {:X}. The initial block specified version {:X}.",
                 index, actual, expected
@@ -381,6 +387,10 @@ impl fmt::Display for BlockDecoderError {
             MissingBlock { count, index } => write!(
                 f, "Incomplete image: {} missing block(s). First missing block is at index {} (0-based).",
                 count, index
+            DuplicateBlock { index } => write!(
+                f, "Block {}: duplicate block.",
+                index
+            ),
             ),
         }
     }
