@@ -343,35 +343,43 @@ impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             InvalidBlockLength { actual } => write!(
-                f, "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long ({} header bytes, {} data bytes).",
+                f, "Invalid block length: {} byte(s). \
+                    Blocks must be exactly {} bytes long ({} header bytes, {} data bytes).",
                 actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN, BLOCK_HEAD_LEN, BLOCK_DATA_LEN,
             ),
             InvalidImageLength { actual } => write!(
-                f, "Invalid image length: {} byte(s). The maximum image length is {} bytes.",
+                f, "Invalid image length: {} byte(s). \
+                    The maximum image length is {} bytes.",
                 actual, IMAGE_MAX_BYTES,
             ),
             InvalidBlockCount { actual, expected } => write!(
-                f, "Invalid block count: {} block(s). This image requires {} blocks.",
+                f, "Invalid block count: {} block(s). \
+                    This image requires {} blocks.",
                 actual, expected,
             ),
             InvalidBlockIndex { actual, max } => write!(
-                f, "Invalid block index: {}. The maximum for this image is {}.",
+                f, "Invalid block index: {}. \
+                    The maximum for this image is {}.",
                 actual, max,
             ),
             InconsistentVersion { actual, expected, index } => write!(
-                f, "Block {}: inconsistent version: {:X}. The initial block specified version {:X}.",
+                f, "Block {}: inconsistent version: {:X}. \
+                    The initial block specified version {:X}.",
                 index, actual, expected
             ),
             InconsistentChecksum { actual, expected, index } => write!(
-                f, "Block {}: inconsistent checksum: {:X}. The initial block specified checksum {:X}.",
+                f, "Block {}: inconsistent checksum: {:X}. \
+                    The initial block specified checksum {:X}.",
                 index, actual, expected
             ),
             InconsistentImageLength { actual, expected, index } => write!(
-                f, "Block {}: inconsistent image length: {} byte(s). The initial block specified a length of {} byte(s).",
+                f, "Block {}: inconsistent image length: {} byte(s). \
+                    The initial block specified a length of {} byte(s).",
                 index, actual, expected
             ),
             InconsistentBlockCount { actual, expected, index } => write!(
-                f, "Block {}: inconsistent block count: {} block(s). The initial block specified a count of {} block(s).",
+                f, "Block {}: inconsistent block count: {} block(s). \
+                    The initial block specified a count of {} block(s).",
                 index, actual, expected
             ),
             ChecksumMismatch { actual, expected } => write!(
@@ -383,7 +391,8 @@ impl fmt::Display for BlockDecoderError {
                 index
             ),
             MissingBlock { index } => write!(
-                f, "Incomplete image: one or more block(s) is missing. First missing block is at index {}.",
+                f, "Incomplete image: one or more block(s) is missing. \
+                    First missing block is at index {}.",
                 index
             ),
         }
