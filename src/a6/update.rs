@@ -236,7 +236,7 @@ impl BlockHeader {
             return Err(());
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Verifies that the header's fields (except `block_index`) match those of
