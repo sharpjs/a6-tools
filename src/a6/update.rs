@@ -101,8 +101,8 @@ pub enum BlockDecoderError {
     InconsistentImageLength { actual: u32, expected: u32, index: u16 },
     InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
     ChecksumMismatch        { actual: u32, expected: u32             },
-    MissingBlock            { count:  u16,                index: u16 },
     DuplicateBlock          {                             index: u16 },
+    MissingBlock            {                             index: u16 },
 }
 
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
@@ -149,10 +149,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         // Verify that first block was decoded
         let state = match self.state {
             None => {
-                self.handler.on(&MissingBlock {
-                    count: 1, // TODO: Actual count?
-                    index: 0,
-                })?;
+                self.handler.on(&MissingBlock { index: 0 })?;
                 return Ok(&[])
             },
             Some(ref state) => state,
@@ -160,10 +157,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
         // Check for missing blocks
         if let Some(n) = state.first_missing_block() {
-            self.handler.on(&MissingBlock {
-                count: 1, // TODO: Actual count?
-                index: n,
-            })?;
+            self.handler.on(&MissingBlock { index: n })?;
         }
 
         // Validate checksum
@@ -349,15 +343,15 @@ impl fmt::Display for BlockDecoderError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             InvalidBlockLength { actual } => write!(
-                f, "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long.",
-                actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN,
+                f, "Invalid block length: {} byte(s). Blocks must be exactly {} bytes long ({} header bytes, {} data bytes).",
+                actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN, BLOCK_HEAD_LEN, BLOCK_DATA_LEN,
             ),
             InvalidImageLength { actual } => write!(
                 f, "Invalid image length: {} byte(s). The maximum image length is {} bytes.",
                 actual, IMAGE_MAX_BYTES,
             ),
             InvalidBlockCount { actual, expected } => write!(
-                f, "Invalid block count: {} block(s). The image length requires {} blocks.",
+                f, "Invalid block count: {} block(s). This image requires {} blocks.",
                 actual, expected,
             ),
             InvalidBlockIndex { actual, max } => write!(
@@ -384,13 +378,13 @@ impl fmt::Display for BlockDecoderError {
                 f, "Computed checksum {:X} does not match checksum {:X} specified in block headers.",
                 actual, expected
             ),
-            MissingBlock { count, index } => write!(
-                f, "Incomplete image: {} missing block(s). First missing block is at index {} (0-based).",
-                count, index
             DuplicateBlock { index } => write!(
                 f, "Block {}: duplicate block.",
                 index
             ),
+            MissingBlock { index } => write!(
+                f, "Incomplete image: one or more block(s) is missing. First missing block is at index {}.",
+                index
             ),
         }
     }
