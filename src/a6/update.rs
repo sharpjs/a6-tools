@@ -220,9 +220,12 @@ impl<'a> Block<'a> {
 
         // Validate block length
         if bytes.len() != LEN {
+            // Notify handler of bad length; allow handler to abort
             handler
                 .on(&InvalidBlockLength { actual: bytes.len() })
                 .or(Err(false));
+
+            // Ensure there are enough bytes
             bytes = match bytes.get(..LEN) {
                 Some(b) => b,
                 None    => return Err(true),
@@ -238,6 +241,7 @@ impl<'a> Block<'a> {
             block_index: bytes.read_u16().unwrap(),
         };
 
+        // Assemble block
         Ok(Self { header, data: bytes })
     }
 }
