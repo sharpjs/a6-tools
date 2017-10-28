@@ -35,7 +35,6 @@ const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
 const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
 
 /// Metadata describing a bootloader/OS update block.
-#[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
 pub struct BlockHeader {
     /// Version of the firmware in the image.
@@ -55,13 +54,13 @@ pub struct BlockHeader {
 }
 
 /// A portion of an OS/bootloader update image.
-#[repr(C, packed)]
-pub struct Block {
+#[derive(Clone, Copy, Debug)]
+pub struct Block<'a> {
     /// Metadata header.
     pub header: BlockHeader,
 
     /// Data payload.
-    pub data: [u8; BLOCK_DATA_LEN],
+    pub data: &'a [u8],
 }
 
 #[derive(Clone)]
