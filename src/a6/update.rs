@@ -143,7 +143,12 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         let state = self.check_state(header)?;
 
         // Write block data
-        state.write_block(header.block_index, block);
+        if state.write_block(header.block_index, block) {
+            //self.handler.on(&DuplicateBlock {
+            //    index: header.block_index,
+            //})?;
+        }
+
         Ok(())
     }
 
@@ -342,9 +347,11 @@ impl BlockDecoderState {
         self.blocks_done.first_false().map(|v| v as u16)
     }
 
-    fn write_block(&mut self, index: u16, data: &[u8]) {
+    /// Writes the given block `data` at the given block `index`.  Returns `true`
+    /// if the block has been written already, or `false` otherwise.
+    fn write_block(&mut self, index: u16, data: &[u8]) -> bool {
         self.image[block_range(index)].copy_from_slice(data);
-        self.blocks_done.set(index as usize);
+        self.blocks_done.set(index as usize)
     }
 }
 
