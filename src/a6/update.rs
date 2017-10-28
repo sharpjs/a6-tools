@@ -213,7 +213,7 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 }
 
 impl<'a> Block<'a> {
-    fn read_from<H>(mut bytes: &'a [u8], handler: &H) -> Result<Self, bool>
+    fn from_bytes<H>(mut bytes: &'a [u8], handler: &H) -> Result<Self, bool>
         where H: Handler<BlockDecoderError>
     {
         const LEN: usize = BLOCK_HEAD_LEN + BLOCK_DATA_LEN;
