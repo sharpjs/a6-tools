@@ -117,34 +117,21 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 
     /// Decodes the given `block`, adding its data to the image in progress.
-    pub fn decode_block(&mut self, mut block: &[u8]) -> Result<(), ()> {
-        // Validate block length
-        if block.len() != BLOCK_HEAD_LEN + BLOCK_DATA_LEN {
-            self.handler.on(&InvalidBlockLength {
-                actual: block.len()
-            })?;
-            block = match block.get(..BLOCK_HEAD_LEN + BLOCK_DATA_LEN) {
-                Some(b) => b,
-                None    => return Ok(()),
-            };
-        }
-
-        // Read block header, leaving `block` to contain just the data
-        let header = BlockHeader {
-            version:     block.read_u32().unwrap(),
-            checksum:    block.read_u32().unwrap(),
-            length:      block.read_u32().unwrap(),
-            block_count: block.read_u16().unwrap(),
-            block_index: block.read_u16().unwrap(),
+    pub fn decode_block(&mut self, block: &[u8]) -> Result<(), ()> {
+        // Read block
+        let block = match Block::from_bytes(block, &self.handler) {
+            Ok(b)      => b,
+            Err(true)  => return Ok(()),    // continue
+            Err(false) => return Err(()),   // abort
         };
 
         // Check block header
         let state = self.check_state(header)?;
 
         // Write block data
-        if state.write_block(header.block_index, block) {
+        if state.write_block(block.header.block_index, block.data) {
             //self.handler.on(&DuplicateBlock {
-            //    index: header.block_index,
+            //    index: block.header.block_index,
             //})?;
         }
 
