@@ -128,8 +128,10 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         // Check block header
         let state = match self.state {
             None => {
-                // Initialize state from first block's header
-                self.init_state(block.header)?
+                // Initialize decoder state from first block header
+                block.header.check_len(&self.handler)?;
+                self.state = Some(BlockDecoderState::new(block.header));
+                self.state.as_mut().unwrap()
             },
             Some(ref mut state) => {
                 // Check that block's header matches the first block's header
@@ -175,22 +177,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         }
 
         Ok(image)
-    }
-
-    /// Initializes decoder state using the given `header`.
-    fn init_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
-        // Validate header
-        header.check_len(&self.handler)?;
-
-        // Initialize decoder state
-        self.state = Some(BlockDecoderState {
-            header,
-            blocks_done: BoolArray::new(header.block_count as usize),
-            image:       vec![0; header.length as usize].into_boxed_slice(),
-        });
-
-        // Return mutable ref to state
-        Ok(self.state.as_mut().unwrap())
     }
 }
 
