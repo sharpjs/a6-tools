@@ -212,6 +212,36 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
     }
 }
 
+impl<'a> Block<'a> {
+    fn read_from<H>(mut bytes: &'a [u8], handler: &H) -> Result<Self, bool>
+        where H: Handler<BlockDecoderError>
+    {
+        const LEN: usize = BLOCK_HEAD_LEN + BLOCK_DATA_LEN;
+
+        // Validate block length
+        if bytes.len() != LEN {
+            handler
+                .on(&InvalidBlockLength { actual: bytes.len() })
+                .or(Err(false));
+            bytes = match bytes.get(..LEN) {
+                Some(b) => b,
+                None    => return Err(true),
+            };
+        }
+
+        // Read block header, leaving `bytes` to contain just the data
+        let header = BlockHeader {
+            version:     bytes.read_u32().unwrap(),
+            checksum:    bytes.read_u32().unwrap(),
+            length:      bytes.read_u32().unwrap(),
+            block_count: bytes.read_u16().unwrap(),
+            block_index: bytes.read_u16().unwrap(),
+        };
+
+        Ok(Self { header, data: bytes })
+    }
+}
+
 impl BlockHeader {
     /// Verifies that the header specifies a valid image length and block count.
     fn check_len<H>(&self, handler: &H) -> Result<(), ()>
