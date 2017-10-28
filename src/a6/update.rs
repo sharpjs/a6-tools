@@ -189,11 +189,9 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
             },
             Some(ref mut state) => {
                 // Check that block's header matches the first block's header
-                if let Ok(_) = header.check_match(&state.header, &self.handler) {
-                    Ok(state)
-                } else {
-                    Err(())
-                }
+                header
+                    .check_match(&state.header, &self.handler)
+                    .and(Ok(state))
             },
         }
     }
