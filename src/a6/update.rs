@@ -142,9 +142,9 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
         // Write block data
         if state.write_block(block.header.block_index, block.data) {
-            //self.handler.on(&DuplicateBlock {
-            //    index: block.header.block_index,
-            //})?;
+            self.handler.on(&DuplicateBlock {
+                index: block.header.block_index,
+            })?;
         }
 
         Ok(())
