@@ -126,7 +126,17 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         };
 
         // Check block header
-        let state = self.check_state(header)?;
+        let state = match self.state {
+            None => {
+                // Initialize state from first block's header
+                self.init_state(block.header)?
+            },
+            Some(ref mut state) => {
+                // Check that block's header matches the first block's header
+                block.header.check_match(&state.header, &self.handler)?;
+                state
+            },
+        };
 
         // Write block data
         if state.write_block(block.header.block_index, block.data) {
@@ -165,21 +175,6 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
         }
 
         Ok(image)
-    }
-
-    fn check_state(&mut self, header: BlockHeader) -> Result<&mut BlockDecoderState, ()> {
-        match self.state {
-            None => {
-                // Initialize state from first block's header
-                self.init_state(header)
-            },
-            Some(ref mut state) => {
-                // Check that block's header matches the first block's header
-                header
-                    .check_match(&state.header, &self.handler)
-                    .and(Ok(state))
-            },
-        }
     }
 
     /// Initializes decoder state using the given `header`.
