@@ -181,6 +181,17 @@ impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
 }
 
 impl<'a> Block<'a> {
+    /// Creates a `Block` from the given `bytes`, reporting problems to the
+    /// given `handler`.
+    ///
+    /// Returns the block if `bytes` is exactly block-sized or if `bytes` is too
+    /// large and `handler` returns `Ok(())` (continue).
+    ///
+    /// Returns `Err(true)` if `bytes` is too small and `handler` returns
+    /// `Ok(())` (continue).
+    ///
+    /// Returns `Err(false) if `bytes` is too small or too large and `handler`
+    /// returns `Err(())` (stop).
     fn from_bytes<H>(mut bytes: &'a [u8], handler: &H) -> Result<Self, bool>
         where H: Handler<BlockDecoderError>
     {
@@ -193,7 +204,7 @@ impl<'a> Block<'a> {
                 .on(&InvalidBlockLength { actual: bytes.len() })
                 .or(Err(false));
 
-            // Ensure there are enough bytes
+            // Not aborting; check if there are enough bytes
             bytes = match bytes.get(..LEN) {
                 Some(b) => b,
                 None    => return Err(true),
@@ -209,7 +220,7 @@ impl<'a> Block<'a> {
             block_index: bytes.read_u16().unwrap(),
         };
 
-        // Assemble block
+        // Create block
         Ok(Self { header, data: bytes })
     }
 }
