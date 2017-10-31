@@ -437,6 +437,29 @@ impl fmt::Display for BlockDecoderError {
 mod tests {
     use super::*;
 
+    struct Panicker;
+
+    impl Handler<BlockDecoderError> for Panicker {
+        fn on(&self, event: &BlockDecoderError) -> Result<(), ()> {
+            panic!("Unexpected event: {:?}", event)
+        }
+    }
+
+    #[test]
+    fn block_from_bytes_ok() {
+        let header: Vec<u8> = (0..0x010).map(|x| x as u8).collect();
+        let data:   Vec<u8> = (0..0x100).map(|x| x as u8).collect();
+        let bytes = [&header[..], &data[..]].concat();
+
+        let block = Block::from_bytes(&bytes[..], &Panicker).unwrap();
+
+        assert_eq!(block.header.version,     0x00010203);
+        assert_eq!(block.header.checksum,    0x04050607);
+        assert_eq!(block.header.length,      0x08090A0B);
+        assert_eq!(block.header.block_count, 0x0C0D);
+        assert_eq!(block.header.block_index, 0x0E0F);
+    }
+
     fn new_state() -> BlockDecoderState {
         BlockDecoderState::new(BlockHeader {
             version:        0, // don't care
