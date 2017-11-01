@@ -202,7 +202,7 @@ impl<'a> Block<'a> {
             // Notify handler of bad length; allow handler to abort
             handler
                 .on(&InvalidBlockLength { actual: bytes.len() })
-                .or(Err(false));
+                .or(Err(false))?;
 
             // Not aborting; check if there are enough bytes
             bytes = match bytes.get(..LEN) {
@@ -468,6 +468,19 @@ mod tests {
         assert_eq!(block.header.length,      0x08090A0B);
         assert_eq!(block.header.block_count, 0x0C0D);
         assert_eq!(block.header.block_index, 0x0E0F);
+    }
+
+    #[test]
+    fn block_from_bytes_too_few_abort() {
+        const BAD_LEN: usize = 42;
+        let bytes = vec![0; BAD_LEN];
+        let handler = vec![
+            ( InvalidBlockLength { actual: BAD_LEN }, Err(()) )
+        ];
+
+        let result = Block::from_bytes(&bytes[..], &handler);
+
+        assert_eq!(result.unwrap_err(), false);
     }
 
     #[test]
