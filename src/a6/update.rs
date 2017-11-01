@@ -473,19 +473,6 @@ mod tests {
     }
 
     #[test]
-    fn block_from_bytes_too_few_abort() {
-        let bytes = vec![0; 42];
-
-        let handler = vec![
-            ( InvalidBlockLength { actual: bytes.len() }, Err(()) )
-        ];
-
-        let result = Block::from_bytes(&bytes[..], &handler);
-
-        assert_eq!(result.unwrap_err(), false);
-    }
-
-    #[test]
     fn block_from_bytes_too_few_continue() {
         let bytes = vec![0; 42];
 
@@ -496,6 +483,19 @@ mod tests {
         let result = Block::from_bytes(&bytes[..], &handler);
 
         assert_eq!(result.unwrap_err(), true);
+    }
+
+    #[test]
+    fn block_from_bytes_too_few_abort() {
+        let bytes = vec![0; 42];
+
+        let handler = vec![
+            ( InvalidBlockLength { actual: bytes.len() }, Err(()) )
+        ];
+
+        let result = Block::from_bytes(&bytes[..], &handler);
+
+        assert_eq!(result.unwrap_err(), false);
     }
 
     #[test]
