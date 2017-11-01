@@ -445,6 +445,15 @@ mod tests {
         }
     }
 
+    impl Handler<BlockDecoderError> for Vec<(BlockDecoderError, Result<(), ()>)> {
+        fn on(&self, event: &BlockDecoderError) -> Result<(), ()> {
+            match self.iter().find(|&&(e, _)| e == *event) {
+                Some(&(_, result)) => result,
+                None               => panic!("Unexpected event: {:?}", event),
+            }
+        }
+    }
+
     #[test]
     fn block_from_bytes_ok() {
         let header: Vec<u8> = (0..0x010).map(|x| x as u8).collect();
