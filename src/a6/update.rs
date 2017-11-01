@@ -457,11 +457,13 @@ mod tests {
 
     #[test]
     fn block_from_bytes_ok() {
-        let header: Vec<u8> = (0..0x010).map(|x| x as u8).collect();
-        let data:   Vec<u8> = (0..0x100).map(|x| x as u8).collect();
-        let bytes = [&header[..], &data[..]].concat();
+        let bytes
+            = (0..0x010)        // header
+            .chain(0..0x100)    // data
+            .map(|x| x as u8)
+            .collect::<Vec<_>>();
 
-        let block = Block::from_bytes(&bytes[..], &Panicker).unwrap();
+        let block = Block::from_bytes(&bytes[..], &vec![]).unwrap();
 
         assert_eq!(block.header.version,     0x00010203);
         assert_eq!(block.header.checksum,    0x04050607);
@@ -472,10 +474,10 @@ mod tests {
 
     #[test]
     fn block_from_bytes_too_few_abort() {
-        const BAD_LEN: usize = 42;
-        let bytes = vec![0; BAD_LEN];
+        let bytes = vec![0; 42];
+
         let handler = vec![
-            ( InvalidBlockLength { actual: BAD_LEN }, Err(()) )
+            ( InvalidBlockLength { actual: bytes.len() }, Err(()) )
         ];
 
         let result = Block::from_bytes(&bytes[..], &handler);
@@ -485,10 +487,10 @@ mod tests {
 
     #[test]
     fn block_from_bytes_too_few_continue() {
-        const BAD_LEN: usize = 42;
-        let bytes = vec![0; BAD_LEN];
+        let bytes = vec![0; 42];
+
         let handler = vec![
-            ( InvalidBlockLength { actual: BAD_LEN }, Ok(()) )
+            ( InvalidBlockLength { actual: bytes.len() }, Ok(()) )
         ];
 
         let result = Block::from_bytes(&bytes[..], &handler);
