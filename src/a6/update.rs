@@ -498,6 +498,46 @@ mod tests {
         assert_eq!(result.unwrap_err(), true);
     }
 
+    #[test]
+    fn block_from_bytes_too_many_continue() {
+        let bytes
+            = (0..0x010)        // header
+            .chain(0..0x100)    // data
+            .chain(0..1)        // extra byte
+            .map(|x| x as u8)
+            .collect::<Vec<_>>();
+
+        let handler = vec![
+            ( InvalidBlockLength { actual: bytes.len() }, Ok(()) )
+        ];
+
+        let block = Block::from_bytes(&bytes[..], &handler).unwrap();
+
+        assert_eq!(block.header.version,     0x00010203);
+        assert_eq!(block.header.checksum,    0x04050607);
+        assert_eq!(block.header.length,      0x08090A0B);
+        assert_eq!(block.header.block_count, 0x0C0D);
+        assert_eq!(block.header.block_index, 0x0E0F);
+    }
+
+    #[test]
+    fn block_from_bytes_too_many_abort() {
+        let bytes
+            = (0..0x010)        // header
+            .chain(0..0x100)    // data
+            .chain(0..1)        // extra byte
+            .map(|x| x as u8)
+            .collect::<Vec<_>>();
+
+        let handler = vec![
+            ( InvalidBlockLength { actual: bytes.len() }, Err(()) )
+        ];
+
+        let result = Block::from_bytes(&bytes[..], &handler);
+
+        assert_eq!(result.unwrap_err(), false);
+    }
+
     fn new_state() -> BlockDecoderState {
         BlockDecoderState::new(BlockHeader {
             version:        0, // don't care
