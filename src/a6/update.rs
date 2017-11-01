@@ -436,6 +436,7 @@ impl fmt::Display for BlockDecoderError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::BlockDecoderError::*;
 
     struct Panicker;
 
@@ -467,6 +468,19 @@ mod tests {
         assert_eq!(block.header.length,      0x08090A0B);
         assert_eq!(block.header.block_count, 0x0C0D);
         assert_eq!(block.header.block_index, 0x0E0F);
+    }
+
+    #[test]
+    fn block_from_bytes_too_few_continue() {
+        const BAD_LEN: usize = 42;
+        let bytes = vec![0; BAD_LEN];
+        let handler = vec![
+            ( InvalidBlockLength { actual: BAD_LEN }, Ok(()) )
+        ];
+
+        let result = Block::from_bytes(&bytes[..], &handler);
+
+        assert_eq!(result.unwrap_err(), true);
     }
 
     fn new_state() -> BlockDecoderState {
