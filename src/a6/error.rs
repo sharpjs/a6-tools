@@ -16,7 +16,7 @@
 
 use std::fmt;
 
-use a6::update::{BLOCK_HEAD_LEN, BLOCK_DATA_LEN, IMAGE_MAX_BYTES, IMAGE_MAX_BLOCKS};
+use a6::block::{BLOCK_HEAD_LEN, BLOCK_DATA_LEN, IMAGE_MAX_BYTES, IMAGE_MAX_BLOCKS};
 
 use self::BlockDecoderError::*;
 
