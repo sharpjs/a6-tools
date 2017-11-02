@@ -18,21 +18,21 @@ use std::fmt;
 use std::mem::size_of;
 use std::ops::Range;
 
+use a6::error::BlockDecoderError;
+use a6::error::BlockDecoderError::*;
 use io::*;
 use util::{BoolArray, Handler};
 
-use self::BlockDecoderError::*;
-
-const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
-const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
-const BLOCK_7BIT_LEN:   usize = 311;  // 7-bit-encoded block length (bytes)
+pub const BLOCK_HEAD_LEN:   usize =  16;  // Raw block header length (bytes)
+pub const BLOCK_DATA_LEN:   usize = 256;  // Raw block data length (bytes)
+pub const BLOCK_7BIT_LEN:   usize = 311;  // 7-bit-encoded block length (bytes)
 
 const BLOCK_DIV_SHIFT:  usize = 8;
 const BLOCK_REM_MASK:   usize = (1 << BLOCK_DIV_SHIFT) - 1;
 
 // Maximum image size
-const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
-const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
+pub const IMAGE_MAX_BYTES:  u32 = 2 * 1024 * 1024;
+pub const IMAGE_MAX_BLOCKS: u16 = (IMAGE_MAX_BYTES as usize / BLOCK_DATA_LEN) as u16;
 
 /// Metadata describing a bootloader/OS update block.
 #[derive(Clone, Copy, Debug)]
@@ -86,22 +86,6 @@ pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
     /// Handler for error conditions.
     handler: H,
-}
-
-/// Error conditions reportable by `BlockDecoder`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BlockDecoderError {
-    InvalidBlockLength      { actual: usize                          },
-    InvalidImageLength      { actual: u32                            },
-    InvalidBlockIndex       { actual: u16, max: u16                  },
-    InvalidBlockCount       { actual: u16, expected: u16             },
-    InconsistentVersion     { actual: u32, expected: u32, index: u16 },
-    InconsistentChecksum    { actual: u32, expected: u32, index: u16 },
-    InconsistentImageLength { actual: u32, expected: u32, index: u16 },
-    InconsistentBlockCount  { actual: u16, expected: u16, index: u16 },
-    ChecksumMismatch        { actual: u32, expected: u32             },
-    DuplicateBlock          {                             index: u16 },
-    MissingBlock            {                             index: u16 },
 }
 
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
@@ -371,66 +355,6 @@ fn block_range(index: u16) -> Range<usize> {
     let start = index << BLOCK_DIV_SHIFT;
     let end   = start  + BLOCK_DATA_LEN;
     start..end
-}
-
-impl fmt::Display for BlockDecoderError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            InvalidBlockLength { actual } => write!(
-                f, "Invalid block length: {} byte(s). \
-                    Blocks must be exactly {} bytes long ({} header bytes, {} data bytes).",
-                actual, BLOCK_HEAD_LEN + BLOCK_DATA_LEN, BLOCK_HEAD_LEN, BLOCK_DATA_LEN,
-            ),
-            InvalidImageLength { actual } => write!(
-                f, "Invalid image length: {} byte(s). \
-                    The maximum image length is {} bytes.",
-                actual, IMAGE_MAX_BYTES,
-            ),
-            InvalidBlockCount { actual, expected } => write!(
-                f, "Invalid block count: {} block(s). \
-                    This image requires {} blocks.",
-                actual, expected,
-            ),
-            InvalidBlockIndex { actual, max } => write!(
-                f, "Invalid block index: {}. \
-                    The maximum for this image is {}.",
-                actual, max,
-            ),
-            InconsistentVersion { actual, expected, index } => write!(
-                f, "Block {}: inconsistent version: {:X}. \
-                    The initial block specified version {:X}.",
-                index, actual, expected
-            ),
-            InconsistentChecksum { actual, expected, index } => write!(
-                f, "Block {}: inconsistent checksum: {:X}. \
-                    The initial block specified checksum {:X}.",
-                index, actual, expected
-            ),
-            InconsistentImageLength { actual, expected, index } => write!(
-                f, "Block {}: inconsistent image length: {} byte(s). \
-                    The initial block specified a length of {} byte(s).",
-                index, actual, expected
-            ),
-            InconsistentBlockCount { actual, expected, index } => write!(
-                f, "Block {}: inconsistent block count: {} block(s). \
-                    The initial block specified a count of {} block(s).",
-                index, actual, expected
-            ),
-            ChecksumMismatch { actual, expected } => write!(
-                f, "Computed checksum {:X} does not match checksum {:X} specified in block headers.",
-                actual, expected
-            ),
-            DuplicateBlock { index } => write!(
-                f, "Block {}: duplicate block.",
-                index
-            ),
-            MissingBlock { index } => write!(
-                f, "Incomplete image: one or more block(s) is missing. \
-                    First missing block is at index {}.",
-                index
-            ),
-        }
-    }
 }
 
 #[cfg(test)]
