@@ -34,7 +34,7 @@ pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
 #[derive(Clone)]
 struct BlockDecoderState {
-    /// Block 0 metadata.
+    /// First block metadata.
     header: BlockHeader,
 
     /// Map of 'done' bits for each block.
