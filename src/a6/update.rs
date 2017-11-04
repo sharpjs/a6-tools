@@ -19,18 +19,6 @@ use a6::error::BlockDecoderError;
 use a6::error::BlockDecoderError::*;
 use util::{BoolArray, Handler};
 
-#[derive(Clone)]
-struct BlockDecoderState {
-    /// Block 0 metadata.
-    header: BlockHeader,
-
-    /// Map of 'done' bits for each block.
-    blocks_done: BoolArray,
-
-    /// Buffer for image in progress.
-    image: Box<[u8]>,
-}
-
 /// Constructs a binary image from A6 OS/bootloader update blocks.
 #[derive(Clone)]
 pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
@@ -42,6 +30,18 @@ pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
 
     /// Handler for error conditions.
     handler: H,
+}
+
+#[derive(Clone)]
+struct BlockDecoderState {
+    /// Block 0 metadata.
+    header: BlockHeader,
+
+    /// Map of 'done' bits for each block.
+    blocks_done: BoolArray,
+
+    /// Buffer for image in progress.
+    image: Box<[u8]>,
 }
 
 impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
