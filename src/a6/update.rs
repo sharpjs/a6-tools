@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::fmt;
-use std::mem::size_of;
-
 use a6::block::*;
 use a6::error::BlockDecoderError;
 use a6::error::BlockDecoderError::*;
