@@ -38,7 +38,7 @@ struct BlockDecoderState {
     header: BlockHeader,
 
     /// Map of 'done' bits for each block.
-    blocks_done: BoolArray,
+    block_map: BoolArray,
 
     /// Buffer for image in progress.
     image: Box<[u8]>,
@@ -133,7 +133,7 @@ impl BlockDecoderState {
         let n = header.block_count as usize;
         Self {
             header,
-            blocks_done: BoolArray::new(n),
+            block_map: BoolArray::new(n),
             image:       block_buffer(n),
         }
     }
@@ -145,19 +145,19 @@ impl BlockDecoderState {
 
     #[inline]
     fn has_block(&self, index: u16) -> bool {
-        self.blocks_done.get(index as usize)
+        self.block_map.get(index as usize)
     }
 
     #[inline]
     fn first_missing_block(&self) -> Option<u16> {
-        self.blocks_done.first_false().map(|v| v as u16)
+        self.block_map.first_false().map(|v| v as u16)
     }
 
     /// Writes the given block `data` at the given block `index`.  Returns `true`
     /// if the block has been written already, or `false` otherwise.
     fn write_block(&mut self, index: u16, data: &[u8]) -> bool {
         self.image[block_range(index)].copy_from_slice(data);
-        self.blocks_done.set(index as usize)
+        self.block_map.set(index as usize)
     }
 }
 
