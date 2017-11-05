@@ -16,8 +16,8 @@
 
 use std::ops::Range;
 
-use a6::error::BlockDecoderError;
-use a6::error::BlockDecoderError::*;
+use a6::error::BlockDecodeError;
+use a6::error::BlockDecodeError::*;
 use io::*;
 use util::Handler;
 
@@ -73,7 +73,7 @@ impl<'a> Block<'a> {
     /// Returns `Err(false) if `bytes` is too small or too large and `handler`
     /// returns `Err(())` (stop).
     pub fn from_bytes<H>(mut bytes: &'a [u8], handler: &H) -> Result<Self, bool>
-        where H: Handler<BlockDecoderError>
+        where H: Handler<BlockDecodeError>
     {
         const LEN: usize = BLOCK_HEAD_LEN + BLOCK_DATA_LEN;
 
@@ -108,7 +108,7 @@ impl<'a> Block<'a> {
 impl BlockHeader {
     /// Verifies that the header specifies a valid image length and block count.
     pub fn check_len<H>(&self, handler: &H) -> Result<(), ()>
-        where H: Handler<BlockDecoderError>
+        where H: Handler<BlockDecodeError>
     {
         // Validate claimed image length
         if self.length > IMAGE_MAX_BYTES {
@@ -137,7 +137,7 @@ impl BlockHeader {
     /// Verifies that the header's fields (except `block_index`) match those of
     /// the given `other` header.
     pub fn check_match<H>(&self, other: &BlockHeader, handler: &H) -> Result<(), ()>
-        where H: Handler<BlockDecoderError>
+        where H: Handler<BlockDecodeError>
     {
         let mut result = Ok(());
 
@@ -182,7 +182,7 @@ impl BlockHeader {
 
     /// Verifies that the header specifies a valid block index.
     pub fn check_block_index<H>(&self, handler: &H) -> Result<(), ()>
-        where H: Handler<BlockDecoderError>
+        where H: Handler<BlockDecodeError>
     {
         if self.block_index >= self.block_count {
             handler.on(&InvalidBlockIndex {
@@ -220,18 +220,18 @@ pub fn block_range(index: u16) -> Range<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::BlockDecoderError::*;
+    use super::BlockDecodeError::*;
 
     struct Panicker;
 
-    impl Handler<BlockDecoderError> for Panicker {
-        fn on(&self, event: &BlockDecoderError) -> Result<(), ()> {
+    impl Handler<BlockDecodeError> for Panicker {
+        fn on(&self, event: &BlockDecodeError) -> Result<(), ()> {
             panic!("Unexpected event: {:?}", event)
         }
     }
 
-    impl Handler<BlockDecoderError> for Vec<(BlockDecoderError, Result<(), ()>)> {
-        fn on(&self, event: &BlockDecoderError) -> Result<(), ()> {
+    impl Handler<BlockDecodeError> for Vec<(BlockDecodeError, Result<(), ()>)> {
+        fn on(&self, event: &BlockDecodeError) -> Result<(), ()> {
             match self.iter().find(|&&(e, _)| e == *event) {
                 Some(&(_, result)) => result,
                 None               => panic!("Unexpected event: {:?}", event),

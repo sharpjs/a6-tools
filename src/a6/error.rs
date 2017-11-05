@@ -18,11 +18,11 @@ use std::fmt;
 
 use a6::block::{BLOCK_HEAD_LEN, BLOCK_DATA_LEN, IMAGE_MAX_BYTES, IMAGE_MAX_BLOCKS};
 
-use self::BlockDecoderError::*;
+use self::BlockDecodeError::*;
 
 /// Error conditions reportable during block decoding.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BlockDecoderError {
+pub enum BlockDecodeError {
     InvalidBlockLength      { actual: usize                          },
     InvalidImageLength      { actual: u32                            },
     InvalidBlockIndex       { actual: u16, max: u16                  },
@@ -36,7 +36,7 @@ pub enum BlockDecoderError {
     MissingBlock            {                             index: u16 },
 }
 
-impl fmt::Display for BlockDecoderError {
+impl fmt::Display for BlockDecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             InvalidBlockLength { actual } => write!(

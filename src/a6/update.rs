@@ -15,13 +15,13 @@
 // along with a6-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 use a6::block::*;
-use a6::error::BlockDecoderError;
-use a6::error::BlockDecoderError::*;
+use a6::error::BlockDecodeError;
+use a6::error::BlockDecodeError::*;
 use util::{BoolArray, Handler};
 
 /// Constructs a binary image from A6 OS/bootloader update blocks.
 #[derive(Clone)]
-pub struct BlockDecoder<H> where H: Handler<BlockDecoderError> {
+pub struct BlockDecoder<H> where H: Handler<BlockDecodeError> {
     /// Current state, populated on first block.
     state: Option<BlockDecoderState>,
 
@@ -44,7 +44,7 @@ struct BlockDecoderState {
     image: Box<[u8]>,
 }
 
-impl<H> BlockDecoder<H> where H: Handler<BlockDecoderError> {
+impl<H> BlockDecoder<H> where H: Handler<BlockDecodeError> {
     /// Creates a `BlockDecoder` with the given `capacity` and `handler`.
     pub fn new(capacity: u32, handler: H) -> Self {
         if capacity > IMAGE_MAX_BYTES {
@@ -164,7 +164,7 @@ impl BlockDecoderState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::BlockDecoderError::*;
+    use super::BlockDecodeError::*;
 
     fn new_state() -> BlockDecoderState {
         BlockDecoderState::new(BlockHeader {
